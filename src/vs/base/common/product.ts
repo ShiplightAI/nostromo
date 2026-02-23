@@ -156,6 +156,11 @@ export interface IProductConfiguration {
 		readonly ariaKey: string;
 	};
 
+	readonly posthogConfig?: {
+		readonly apiKey: string;
+		readonly host?: string;
+	};
+
 	readonly documentationUrl?: string;
 	readonly serverDocumentationUrl?: string;
 	readonly releaseNotesUrl?: string;

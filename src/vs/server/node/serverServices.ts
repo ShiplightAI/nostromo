@@ -80,6 +80,7 @@ import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStar
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { TelemetryLogAppender } from '../../platform/telemetry/common/telemetryLogAppender.js';
+import { PostHogAppender } from '../../platform/telemetry/common/posthogAppender.js';
 import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { NativeMcpDiscoveryHelperChannel } from '../../platform/mcp/node/nativeMcpDiscoveryHelperChannel.js';
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
@@ -170,15 +171,23 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IRequestService, requestService);
 
 	let oneDsAppender: ITelemetryAppender = NullAppender;
+	let posthogAppender: ITelemetryAppender = NullAppender;
 	const isInternal = isInternalTelemetry(productService, configurationService);
 	if (supportsTelemetry(productService, environmentService)) {
-		if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
-			oneDsAppender = new OneDataSystemAppender(requestService, isInternal, eventPrefix, null, productService.aiConfig.ariaKey);
-			disposables.add(toDisposable(() => oneDsAppender?.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+		if (!isLoggingOnly(productService, environmentService)) {
+			if (productService.aiConfig?.ariaKey) {
+				oneDsAppender = new OneDataSystemAppender(requestService, isInternal, eventPrefix, null, productService.aiConfig.ariaKey);
+				disposables.add(toDisposable(() => oneDsAppender?.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+			}
+		}
+		// PostHog appender works even when running from source (isLoggingOnly)
+		if (productService.posthogConfig?.apiKey) {
+			posthogAppender = new PostHogAppender(productService.posthogConfig.apiKey, productService.version, 'server', productService.posthogConfig.host);
+			disposables.add(toDisposable(() => posthogAppender.flush()));
 		}
 
 		const config: ITelemetryServiceConfig = {
-			appenders: [oneDsAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
+			appenders: [oneDsAppender, posthogAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
 			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, productService.date, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};

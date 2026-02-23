@@ -148,6 +148,11 @@
 		"tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token",
 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
 	},
+	"enableTelemetry": true,
+	"posthogConfig": {
+		"apiKey": "phc_EGFurWvmotDyXfmxZqzc2ByeNvA117nwL1vukMiz37s",
+		"host": "https://us.i.posthog.com"
+	},
 	"trustedExtensionAuthAccess": {
 		"github": [
 			"GitHub.copilot-chat"
