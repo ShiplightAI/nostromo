@@ -287,86 +287,46 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 
 	{
 		id: 'SetupWeb',
-		title: localize('gettingStarted.setupWeb.title', "Get Started with VS Code for the Web"),
-		description: localize('gettingStarted.setupWeb.description', "Customize your editor, learn the basics, and start coding"),
+		title: localize('gettingStarted.setupWeb.title', "Get Started with Shiplight Agent Hub"),
+		description: localize('gettingStarted.setupWeb.description', "Run multiple agents in parallel, monitor their work, and review changes"),
 		isFeatured: true,
 		icon: setupIcon,
 		when: 'isWeb',
-		next: 'Beginner',
-		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Setup VS Code Web'),
+		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Shiplight Agent Hub'),
 		content: {
 			type: 'steps',
 			steps: [
 				{
-					id: 'pickColorThemeWeb',
-					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
-					description: localize('gettingStarted.pickColor.description.interpolated', "The right theme helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n{0}", Button(localize('titleID', "Browse Color Themes"), 'command:workbench.action.selectTheme')),
-					completionEvents: [
-						'onSettingChanged:workbench.colorTheme',
-						'onCommand:workbench.action.selectTheme'
-					],
-					media: { type: 'markdown', path: 'theme_picker', }
-				},
-				{
-					id: 'menuBarWeb',
-					title: localize('gettingStarted.menuBar.title', "Just the right amount of UI"),
-					description: localize('gettingStarted.menuBar.description.interpolated', "The full menu bar is available in the dropdown menu to make room for your code. Toggle its appearance for faster access. \n{0}", Button(localize('toggleMenuBar', "Toggle Menu Bar"), 'command:workbench.action.toggleMenuBar')),
-					when: 'isWeb',
+					id: 'runAgentsInWorktrees',
+					title: localize('gettingStarted.runAgents.title', "Run Agents in Parallel Worktrees"),
+					description: localize('gettingStarted.runAgents.description.interpolated', "Launch multiple CLI agents (Claude, Codex, Copilot) each in an isolated git worktree. Switch between them from the Agents panel. Every agent works independently without conflicts.\n{0}", Button(localize('openAgents', "Open Agents"), 'command:workbench.action.chat.open')),
 					media: {
-						type: 'svg', altText: 'Comparing menu dropdown with the visible menu bar.', path: 'menuBar.svg'
+						type: 'svg', altText: 'Agents running in parallel worktrees.', path: 'openFolder.svg'
 					},
 				},
 				{
-					id: 'extensionsWebWeb',
-					title: localize('gettingStarted.extensions.title', "Code with extensions"),
-					description: localize('gettingStarted.extensionsWeb.description.interpolated', "Extensions are VS Code's power-ups. A growing number are becoming available in the web.\n{0}", Button(localize('browsePopularWeb', "Browse Popular Web Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
-					when: 'workspacePlatform == \'webworker\'',
+					id: 'agentCentricUI',
+					title: localize('gettingStarted.agentUI.title', "Agent-Centric UI"),
+					description: localize('gettingStarted.agentUI.description.interpolated', "The tab bar lets you manage multiple agent sessions side-by-side. Configure agent commands via the gear icon. Add new agents from the \"+\" menu. This IDE is purpose-built for operating agents, not for writing code by hand.\n{0}", Button(localize('openAgentsUI', "Open Agents"), 'command:workbench.action.chat.open')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+						type: 'svg', altText: 'Agent-centric tab bar UI.', path: 'commandPalette.svg'
 					},
 				},
 				{
-					id: 'findLanguageExtensionsWeb',
-					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
-					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, inline suggestions, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
-					when: 'workspacePlatform != \'webworker\'',
+					id: 'reviewAgentChanges',
+					title: localize('gettingStarted.reviewChanges.title', "Review Agent Changes"),
+					description: localize('gettingStarted.reviewChanges.description.interpolated', "Use the built-in Git diff and Source Control panel to review changes made by each agent across worktrees. Approve, edit, or reject agent-generated code.\n{0}", Button(localize('openSourceControl', "Open Source Control"), 'command:workbench.view.scm')),
 					media: {
-						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
+						type: 'svg', altText: 'Source control panel for reviewing agent changes.', path: 'extensions-web.svg'
 					},
 				},
 				{
-					id: 'settingsSyncWeb',
-					title: localize('gettingStarted.settingsSync.title', "Sync settings across devices"),
-					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Backup and Sync Settings"), 'command:workbench.userDataSync.actions.turnOn')),
-					when: 'syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
+					id: 'fullVSCodePower',
+					title: localize('gettingStarted.fullPower.title', "Full VS Code Power"),
+					description: localize('gettingStarted.fullPower.description.interpolated', "All VS Code features, extensions, themes, keybindings, and the full ecosystem are available. Browse and test agent-generated work directly. Everything you know from VS Code still works.\n{0}", Button(localize('browseExtensions', "Browse Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
 					media: {
-						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
+						type: 'svg', altText: 'VS Code extensions and full feature set.', path: 'languages.svg'
 					},
-				},
-				{
-					id: 'commandPaletteTaskWeb',
-					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
-				},
-				{
-					id: 'pickAFolderTask-WebWeb',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-					description: localize('gettingStarted.setup.OpenFolderWeb.description.interpolated', "You're all set to start coding. You can open a local project or a remote repository to get your files into VS Code.\n{0}\n{1}", Button(localize('openFolder', "Open Folder"), 'command:workbench.action.addRootFolder'), Button(localize('openRepository', "Open Repository"), 'command:remoteHub.openRepository')),
-					when: 'workspaceFolderCount == 0',
-					media: {
-						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
-					}
-				},
-				{
-					id: 'quickOpenWeb',
-					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your files"),
-					description: localize('gettingStarted.quickOpen.description.interpolated', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n{0}", Button(localize('quickOpen', "Quick Open a File"), 'command:toSide:workbench.action.quickOpen')),
-					when: 'workspaceFolderCount != 0',
-					media: {
-						type: 'svg', altText: 'Go to file in quick search.', path: 'search.svg'
-					}
 				}
 			]
 		}
