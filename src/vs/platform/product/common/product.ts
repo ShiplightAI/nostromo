@@ -62,8 +62,8 @@ else {
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
 			version: '1.104.0-dev',
-			nameShort: 'Shiplight Agent Hub',
-			nameLong: 'Shiplight Agent Hub',
+			nameShort: 'Tachikoma',
+			nameLong: 'Tachikoma',
 			applicationName: 'code-oss',
 			dataFolderName: '.vscode-oss',
 			urlProtocol: 'code-oss',

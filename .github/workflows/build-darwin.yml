@@ -122,13 +122,13 @@ jobs:
       - name: Rename DMG
         run: |
           DMG_FILE=$(ls .build/darwin-dmg/*.dmg)
-          mv "$DMG_FILE" ".build/darwin-dmg/Shiplight-Agent-Hub-darwin-arm64.dmg"
+          mv "$DMG_FILE" ".build/darwin-dmg/Tachikoma-darwin-arm64.dmg"
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
           name: dmg-darwin-arm64
-          path: .build/darwin-dmg/Shiplight-Agent-Hub-darwin-arm64.dmg
+          path: .build/darwin-dmg/Tachikoma-darwin-arm64.dmg
 
   release:
     name: Create Release
@@ -148,7 +148,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Shiplight Agent Hub ${{ github.ref_name }}"
+          name: "Tachikoma ${{ github.ref_name }}"
           draft: true
           files: artifacts/*.dmg
           generate_release_notes: true
