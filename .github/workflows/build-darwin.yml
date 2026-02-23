@@ -10,20 +10,11 @@ on:
 
 jobs:
   build:
-    name: Build macOS (${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-14-xlarge
-            npm_arch: arm64
-          - arch: x64
-            runner: macos-13-xlarge
-            npm_arch: x64
+    name: Build macOS (arm64)
+    runs-on: macos-14-xlarge
     env:
-      NPM_ARCH: ${{ matrix.npm_arch }}
-      VSCODE_ARCH: ${{ matrix.arch }}
+      NPM_ARCH: arm64
+      VSCODE_ARCH: arm64
       VSCODE_QUALITY: stable
 
     steps:
@@ -50,7 +41,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-macos-${{ matrix.arch }}-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-arm64-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
@@ -71,7 +62,7 @@ jobs:
             echo "npm ci failed on attempt $i, retrying..."
           done
         env:
-          npm_config_arch: ${{ matrix.npm_arch }}
+          npm_config_arch: arm64
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -108,7 +99,7 @@ jobs:
         run: |
           set -e
           for i in {1..3}; do
-            npm run electron ${{ matrix.arch }} && break
+            npm run electron arm64 && break
             if [ $i -eq 3 ]; then
               echo "Electron download failed after 3 attempts" >&2
               exit 1
@@ -120,24 +111,24 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build app bundle
-        run: npm run gulp vscode-darwin-${{ matrix.arch }}-min
+        run: npm run gulp vscode-darwin-arm64-min
 
       - name: Create DMG
         run: |
           set -e
           mkdir -p .build/darwin-dmg
-          node build/darwin/create-dmg.ts ../VSCode-darwin-${{ matrix.arch }} .build/darwin-dmg
+          node build/darwin/create-dmg.ts .. .build/darwin-dmg
 
       - name: Rename DMG
         run: |
           DMG_FILE=$(ls .build/darwin-dmg/*.dmg)
-          mv "$DMG_FILE" ".build/darwin-dmg/Shiplight-Agent-Hub-darwin-${{ matrix.arch }}.dmg"
+          mv "$DMG_FILE" ".build/darwin-dmg/Shiplight-Agent-Hub-darwin-arm64.dmg"
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dmg-darwin-${{ matrix.arch }}
-          path: .build/darwin-dmg/Shiplight-Agent-Hub-darwin-${{ matrix.arch }}.dmg
+          name: dmg-darwin-arm64
+          path: .build/darwin-dmg/Shiplight-Agent-Hub-darwin-arm64.dmg
 
   release:
     name: Create Release
@@ -148,15 +139,11 @@ jobs:
       contents: write
 
     steps:
-      - name: Download all DMG artifacts
+      - name: Download DMG artifact
         uses: actions/download-artifact@v4
         with:
+          name: dmg-darwin-arm64
           path: artifacts
-          pattern: dmg-*
-          merge-multiple: true
-
-      - name: List artifacts
-        run: ls -la artifacts/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
