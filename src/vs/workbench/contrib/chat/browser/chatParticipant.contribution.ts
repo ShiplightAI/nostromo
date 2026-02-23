@@ -12,6 +12,7 @@ import { createCommandUri, MarkdownString } from '../../../../base/common/htmlCo
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
+import { Extensions as ConfigExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
@@ -407,4 +408,30 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(ChatParticipantDataRenderer),
+});
+
+// --- Agent CLI Configuration
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'chat.agents',
+	title: localize('agentConfiguration', "Agents"),
+	type: 'object',
+	properties: {
+		'chat.agents.claude.command': {
+			type: 'string',
+			default: 'claude',
+			description: localize('chat.agents.claude.command', "Command to start the Claude CLI agent."),
+		},
+		'chat.agents.codex.command': {
+			type: 'string',
+			default: 'codex',
+			description: localize('chat.agents.codex.command', "Command to start the Codex CLI agent."),
+		},
+		'chat.agents.copilotCli.command': {
+			type: 'string',
+			default: 'gh copilot',
+			description: localize('chat.agents.copilotCli.command', "Command to start the Copilot CLI agent."),
+		},
+	}
 });

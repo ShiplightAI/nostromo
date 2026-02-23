@@ -22,6 +22,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 type AgentTabKind = 'terminal' | 'copilot';
 
@@ -63,6 +64,7 @@ export class AgentTerminalViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -95,15 +97,27 @@ export class AgentTerminalViewPane extends ViewPane {
 			this._showAddTabMenu(addButton);
 		}));
 
+		// Spacer pushes gear to the right
+		append(this._tabBar, $('.agent-terminal-tab-spacer'));
+
+		// Gear icon
+		const gearButton = append(this._tabBar, $('.agent-terminal-tab-gear'));
+		const gearIcon = append(gearButton, $(ThemeIcon.asCSSSelector(Codicon.settingsGear)));
+		gearIcon.style.pointerEvents = 'none';
+		this._register(addDisposableListener(gearButton, EventType.CLICK, () => {
+			this._preferencesService.openSettings({ query: 'chat.agents' });
+		}));
+
 		// Terminal content area
 		this._terminalContainer = append(this._bodyContainer, $('.agent-terminal-content'));
 	}
 
 	private _getTerminalAgentOptions(): { command: string; name: string; provider: string }[] {
+		const config = this.configurationService;
 		return [
-			{ command: 'claude', name: 'Claude', provider: AgentSessionProviders.Claude },
-			{ command: 'codex', name: 'Codex', provider: AgentSessionProviders.Codex },
-			{ command: 'gh copilot', name: 'Copilot CLI', provider: AgentSessionProviders.Background },
+			{ command: config.getValue<string>('chat.agents.claude.command') || 'claude', name: 'Claude', provider: AgentSessionProviders.Claude },
+			{ command: config.getValue<string>('chat.agents.codex.command') || 'codex', name: 'Codex', provider: AgentSessionProviders.Codex },
+			{ command: config.getValue<string>('chat.agents.copilotCli.command') || 'gh copilot', name: 'Copilot CLI', provider: AgentSessionProviders.Background },
 		];
 	}
 
@@ -129,7 +143,7 @@ export class AgentTerminalViewPane extends ViewPane {
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => [copilotAction, ...terminalActions],
+			getActions: () => [...terminalActions, copilotAction],
 		});
 	}
 
