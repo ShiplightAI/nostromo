@@ -640,6 +640,19 @@ class ShellApplication {
 	private _renderRepoList(): void {
 		this.repoListEl.innerHTML = '';
 
+		// Determine which repo (if any) contains the active worktree
+		const hasActiveSession = this.activeWorktreePath !== null;
+		let activeRepoUri: string | null = null;
+		if (hasActiveSession) {
+			for (const repoUri of this.trackedRepos) {
+				const worktrees = this.repoWorktrees.get(repoUri) ?? [];
+				if (worktrees.some(wt => wt.path === this.activeWorktreePath)) {
+					activeRepoUri = repoUri;
+					break;
+				}
+			}
+		}
+
 		for (const repoUri of this.trackedRepos) {
 			const worktrees = this.repoWorktrees.get(repoUri) ?? [];
 			const section = document.createElement('div');
@@ -687,6 +700,13 @@ class ShellApplication {
 			// Worktree list
 			const wtList = document.createElement('div');
 			wtList.className = 'worktree-list';
+
+			// Collapse repos that don't contain the active worktree
+			const shouldCollapse = hasActiveSession && repoUri !== activeRepoUri;
+			if (shouldCollapse) {
+				wtList.classList.add('collapsed');
+				expandIcon.classList.add('collapsed');
+			}
 
 			header.addEventListener('click', () => {
 				const collapsed = wtList.classList.toggle('collapsed');
