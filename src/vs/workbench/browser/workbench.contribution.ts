@@ -563,7 +563,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.sideBar.location': {
 				'type': 'string',
 				'enum': ['left', 'right'],
-				'default': 'left',
+				'default': 'right',
 				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
 			},
 			'workbench.panel.showLabels': {
@@ -574,7 +574,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
 				'enum': ['left', 'bottom', 'top', 'right'],
-				'default': 'bottom',
+				'default': 'left',
 				'description': localize('panelDefaultLocation', "Controls the default location of the panel (Terminal, Debug Console, Output, Problems) in a new workspace. It can either show at the bottom, top, right, or left of the editor area."),
 			},
 			'workbench.panel.opensMaximized': {
