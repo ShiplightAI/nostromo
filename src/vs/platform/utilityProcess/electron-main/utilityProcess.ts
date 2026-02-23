@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
+import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
@@ -471,7 +471,24 @@ export class WindowUtilityProcess extends UtilityProcess {
 
 	override start(configuration: IWindowUtilityProcessConfiguration): boolean {
 		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId);
-		if (!responseWindow?.win || responseWindow.win.isDestroyed() || responseWindow.win.webContents.isDestroyed()) {
+
+		// For embedded WebContentsViews (e.g. workbench views inside shell windows),
+		// the responseWindowId is a webContents ID rather than a BrowserWindow ID.
+		// Resolve the webContents directly and find the owning BrowserWindow.
+		let responseContents: Electron.WebContents | undefined;
+		let responseBrowserWindow: BrowserWindow | undefined;
+
+		if (responseWindow?.win && !responseWindow.win.isDestroyed() && !responseWindow.win.webContents.isDestroyed()) {
+			responseBrowserWindow = responseWindow.win;
+			responseContents = responseWindow.win.webContents;
+		} else {
+			responseContents = webContents.fromId(configuration.responseWindowId) ?? undefined;
+			if (responseContents && !responseContents.isDestroyed()) {
+				responseBrowserWindow = BrowserWindow.fromWebContents(responseContents) ?? undefined;
+			}
+		}
+
+		if (!responseBrowserWindow || responseBrowserWindow.isDestroyed() || !responseContents || responseContents.isDestroyed()) {
 			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
 
 			return true;
@@ -484,11 +501,11 @@ export class WindowUtilityProcess extends UtilityProcess {
 		}
 
 		// Register to window events
-		this.registerWindowListeners(responseWindow.win, configuration);
+		this.registerWindowListeners(responseBrowserWindow, configuration);
 
 		// Establish & exchange message ports
 		const windowPort = this.connect(configuration.payload);
-		responseWindow.win.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
+		responseContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 
 		return true;
 	}

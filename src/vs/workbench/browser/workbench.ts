@@ -351,15 +351,9 @@ export class Workbench extends Layout {
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.willRestoreEditors() } },
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', positionToString(this.getPanelPosition())] },
 			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', this.getSideBarPosition() === Position.LEFT ? 'right' : 'left'] },
-			{ id: Parts.WORKTREE_PANEL_PART, role: 'none', classes: ['worktreepanel'] },
 			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
 		]) {
 			const partContainer = this.createPart(id, role, classes);
-
-			// Hide worktree panel in web mode — the shell page provides worktree switching
-			if (id === Parts.WORKTREE_PANEL_PART && isWeb) {
-				partContainer.style.display = 'none';
-			}
 
 			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);

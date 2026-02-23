@@ -165,11 +165,10 @@ export class AgentTerminalViewPane extends ViewPane {
 		const store = new DisposableStore();
 
 		// Create tab element (insert before the "+" button)
-		const addButton = this._addButton;
 		const tabElement = document.createElement('div');
 		tabElement.className = 'agent-terminal-tab';
 		tabElement.dataset.tabId = id;
-		this._tabBar.insertBefore(tabElement, addButton ?? null);
+		this._tabBar.insertBefore(tabElement, this._addButton ?? null);
 
 		// Label
 		const labelElement = append(tabElement, $('span.tab-label'));
@@ -218,11 +217,10 @@ export class AgentTerminalViewPane extends ViewPane {
 		const store = new DisposableStore();
 
 		// Create tab element (insert before the "+" button)
-		const addButton = this._addButton;
 		const tabElement = document.createElement('div');
 		tabElement.className = 'agent-terminal-tab';
 		tabElement.dataset.tabId = id;
-		this._tabBar.insertBefore(tabElement, addButton ?? null);
+		this._tabBar.insertBefore(tabElement, this._addButton ?? null);
 
 		// Label
 		const labelElement = append(tabElement, $('span.tab-label'));
