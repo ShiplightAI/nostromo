@@ -441,4 +441,7 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 // Opener
 import './contrib/opener/browser/opener.contribution.js';
 
+// Git Worktrees
+import './contrib/gitWorktrees/browser/gitWorktrees.contribution.js';
+
 //#endregion

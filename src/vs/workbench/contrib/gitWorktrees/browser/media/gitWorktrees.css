@@ -1,0 +1,162 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Worktree Panel Part */
+.monaco-workbench .part.worktreepanel {
+	display: flex;
+	flex-direction: column;
+}
+
+.worktree-panel-title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 8px;
+	height: 35px;
+	min-height: 35px;
+	border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border, transparent));
+}
+
+.worktree-panel-title-label {
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.worktree-panel-title-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.worktree-panel-title-toolbar .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	cursor: pointer;
+	border-radius: 5px;
+}
+
+.worktree-panel-title-toolbar .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.worktree-panel-content {
+	flex: 1;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Add Repo button bar */
+.worktree-panel-add-repo {
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border, transparent));
+}
+
+.worktree-panel-add-repo-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
+	border-radius: 3px;
+	text-decoration: none;
+}
+
+.worktree-panel-add-repo-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.worktree-panel-add-repo-button .codicon {
+	font-size: 14px;
+}
+
+/* Tree */
+.worktree-panel-tree {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Repository row */
+.git-worktree-repo {
+	display: flex;
+	align-items: center;
+	padding-left: 2px;
+	font-weight: bold;
+}
+
+.git-worktree-repo .monaco-icon-label {
+	flex: 1;
+}
+
+.git-worktree-repo-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin-right: 4px;
+	cursor: pointer;
+	border-radius: 5px;
+	opacity: 0;
+}
+
+.monaco-list-row:hover .git-worktree-repo-action,
+.git-worktree-repo-action:focus {
+	opacity: 1;
+}
+
+.git-worktree-repo-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Worktree item row */
+.git-worktree-item {
+	display: flex;
+	align-items: center;
+	padding-left: 2px;
+}
+
+.git-worktree-item .monaco-icon-label {
+	flex: 1;
+}
+
+.git-worktree-item-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin-right: 4px;
+	cursor: pointer;
+	border-radius: 5px;
+	opacity: 0;
+}
+
+.monaco-list-row:hover .git-worktree-item-action,
+.git-worktree-item-action:focus {
+	opacity: 1;
+}
+
+.git-worktree-item-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.git-worktree-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 22px;
+	margin-right: 4px;
+}

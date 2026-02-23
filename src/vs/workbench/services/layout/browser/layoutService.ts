@@ -27,7 +27,8 @@ export const enum Parts {
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	CHATBAR_PART = 'workbench.parts.chatbar',
 	EDITOR_PART = 'workbench.parts.editor',
-	STATUSBAR_PART = 'workbench.parts.statusbar'
+	STATUSBAR_PART = 'workbench.parts.statusbar',
+	WORKTREE_PANEL_PART = 'workbench.parts.worktreepanel'
 }
 
 export const enum ZenModeSettings {
