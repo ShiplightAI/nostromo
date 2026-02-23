@@ -67,6 +67,8 @@ const vscodeResourceIncludes = [
 
 	// Workbench
 	'out-build/vs/code/electron-browser/workbench/workbench.html',
+	'out-build/vs/code/electron-browser/worktrees/worktrees.html',
+	'out-build/vs/code/browser/workbench/shell.css',
 	'out-build/vs/sessions/electron-browser/sessions.html',
 
 	// Electron Preload
@@ -152,7 +154,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					...bootstrapEntryPoints
 				],
 				resources: vscodeResources,
-				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench' || entryPoint === 'vs/sessions/electron-browser/sessions'
+				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench' || entryPoint === 'vs/code/electron-browser/worktrees/worktrees' || entryPoint === 'vs/sessions/electron-browser/sessions'
 			}
 		}
 	)
@@ -332,6 +334,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			'vs/workbench/api/node/extensionHostProcess.js',
 			'vs/code/electron-browser/workbench/workbench.html',
 			'vs/code/electron-browser/workbench/workbench.js',
+			'vs/code/electron-browser/worktrees/worktrees.html',
+			'vs/code/electron-browser/worktrees/worktrees.js',
 			'vs/sessions/sessions.desktop.main.js',
 			'vs/sessions/sessions.desktop.main.css',
 			'vs/sessions/electron-browser/sessions.html',
