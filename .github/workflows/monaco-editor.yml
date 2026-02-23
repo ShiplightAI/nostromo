@@ -1,13 +1,7 @@
 name: Monaco Editor checks
 
 on:
-  push:
-    branches:
-      - main
-      - release/*
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
       - release/*
 permissions: {}
 
