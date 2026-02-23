@@ -447,3 +447,4 @@ export interface IChatCodeBlockContextProviderService {
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 export const ChatViewContainerId = 'workbench.panel.chat';
+export const AgentTerminalViewId = 'workbench.view.chat.agentTerminal';
