@@ -5,12 +5,6 @@
 
 /* eslint-disable no-restricted-syntax, no-restricted-globals */
 
-interface IShellConfiguration {
-	remoteAuthority: string;
-	serverBasePath: string;
-	productPath: string;
-}
-
 interface IWorktreeInfo {
 	path: string;
 	head: string;
@@ -30,13 +24,205 @@ interface IBrowseResult {
 	parent: string | null;
 }
 
+/**
+ * Backend abstraction for the shell sidebar.
+ * Web mode uses fetch() to server APIs + iframe creation.
+ * Electron mode uses IPC calls + WebContentsView management.
+ */
+interface IShellSettings {
+	trackedRepositories: string[];
+	lastBrowsePath: string;
+}
+
+interface IShellBackend {
+	listDirectory(path: string, showHidden: boolean): Promise<IBrowseResult>;
+	getWorktrees(repoUris: string[]): Promise<IRepoWorktreeResult[]>;
+	addWorktree(repoPath: string, branchName: string, newBranch: boolean): Promise<{ success: boolean; path?: string; error?: string }>;
+	removeWorktree(repoPath: string, worktreePath: string): Promise<{ success: boolean; error?: string }>;
+	listBranches(repoPath: string): Promise<{ branches: string[] }>;
+	cloneRepo(url: string, destPath: string): Promise<{ success: boolean; path?: string; error?: string }>;
+	loadSettings(): Promise<IShellSettings>;
+	saveSettings(settings: IShellSettings): Promise<void>;
+	switchToWorktree(worktreePath: string): void;
+	onWorktreeRemoved(worktreePath: string): void;
+}
+
+interface IShellConfiguration {
+	remoteAuthority: string;
+	serverBasePath: string;
+	productPath: string;
+	connectionToken?: string;
+}
+
 const MAX_IFRAMES = 5;
-const STORAGE_KEY = 'shell.trackedRepositories';
-const LAST_BROWSE_PATH_KEY = 'shell.lastBrowsePath';
+
+/**
+ * Creates a web-based backend that communicates with the server via HTTP APIs
+ * and creates iframes for workbench instances.
+ */
+function createWebBackend(config: IShellConfiguration, iframeContainer: HTMLElement, iframes: Map<string, HTMLIFrameElement>, iframeLRU: string[]): IShellBackend {
+
+	function buildPath(...segments: string[]): string {
+		const joined = segments.join('/');
+		return joined.replace(/(?<!:)\/\/+/g, '/');
+	}
+
+	function apiUrl(apiPath: string): string {
+		let url = buildPath(config.serverBasePath, config.productPath, apiPath);
+		if (config.connectionToken) {
+			const separator = url.includes('?') ? '&' : '?';
+			url += `${separator}tkn=${encodeURIComponent(config.connectionToken)}`;
+		}
+		return url;
+	}
+
+	async function fetchJson<T>(apiPath: string, body: object): Promise<T> {
+		const url = apiUrl(apiPath);
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+
+		if (!response.ok) {
+			const text = await response.text();
+			throw new Error(text || `HTTP ${response.status}`);
+		}
+
+		return response.json();
+	}
+
+	return {
+		listDirectory: (path, showHidden) => fetchJson<IBrowseResult>('/api/browse', { path, showHidden }),
+		getWorktrees: repoUris => fetchJson<IRepoWorktreeResult[]>('/api/worktrees', { repoUris }),
+		addWorktree: (repoPath, branchName, newBranch) => fetchJson('/api/worktree-add', { repoPath, branchName, newBranch }),
+		removeWorktree: (repoPath, worktreePath) => fetchJson('/api/worktree-remove', { repoPath, worktreePath }),
+		listBranches: repoPath => fetchJson('/api/branches', { repoPath }),
+		cloneRepo: (url, destPath) => fetchJson('/api/clone', { url, destPath }),
+
+		async loadSettings(): Promise<IShellSettings> {
+			const settingsUrl = apiUrl('/api/shell-settings');
+			const response = await fetch(settingsUrl);
+			if (!response.ok) {
+				return { trackedRepositories: [], lastBrowsePath: '' };
+			}
+			return response.json();
+		},
+
+		async saveSettings(settings: IShellSettings): Promise<void> {
+			const settingsUrl = apiUrl('/api/shell-settings');
+			await fetch(settingsUrl, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(settings)
+			});
+		},
+
+		switchToWorktree(worktreePath: string): void {
+			// Hide all iframes
+			for (const iframe of iframes.values()) {
+				iframe.classList.add('hidden');
+			}
+
+			// Show or create the iframe
+			let iframe = iframes.get(worktreePath);
+			if (iframe) {
+				iframe.classList.remove('hidden');
+				const idx = iframeLRU.indexOf(worktreePath);
+				if (idx !== -1) {
+					iframeLRU.splice(idx, 1);
+				}
+				iframeLRU.push(worktreePath);
+			} else {
+				// Evict if at capacity
+				while (iframes.size >= MAX_IFRAMES && iframeLRU.length > 0) {
+					const evictPath = iframeLRU.shift()!;
+					const evictIframe = iframes.get(evictPath);
+					if (evictIframe) {
+						evictIframe.remove();
+						iframes.delete(evictPath);
+					}
+				}
+
+				iframe = document.createElement('iframe');
+				const folderUri = `vscode-remote://${config.remoteAuthority}${worktreePath}`;
+				let iframeUrl = buildPath(config.serverBasePath, config.productPath, `/?folder=${encodeURIComponent(folderUri)}&embedded=true`);
+				if (config.connectionToken) {
+					iframeUrl += `&tkn=${encodeURIComponent(config.connectionToken)}`;
+				}
+				iframe.src = iframeUrl;
+				iframe.setAttribute('allow', 'clipboard-read; clipboard-write');
+				iframeContainer.appendChild(iframe);
+				iframes.set(worktreePath, iframe);
+				iframeLRU.push(worktreePath);
+			}
+
+			// Update browser URL
+			const folderUri = `vscode-remote://${config.remoteAuthority}${worktreePath}`;
+			const newUrl = new URL(window.location.href);
+			newUrl.searchParams.set('folder', folderUri);
+			history.replaceState(null, '', newUrl.toString());
+		},
+
+		onWorktreeRemoved(worktreePath: string): void {
+			const iframe = iframes.get(worktreePath);
+			if (iframe) {
+				iframe.remove();
+				iframes.delete(worktreePath);
+				const lruIdx = iframeLRU.indexOf(worktreePath);
+				if (lruIdx !== -1) {
+					iframeLRU.splice(lruIdx, 1);
+				}
+			}
+		}
+	};
+}
+
+/**
+ * Creates an Electron IPC-based backend that communicates with main process services
+ * and uses WebContentsView for workbench instances.
+ */
+interface IShellIpcRenderer {
+	invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+}
+
+function createElectronBackend(windowId: number, ipcRenderer: IShellIpcRenderer, iframeContainer: HTMLElement): IShellBackend {
+
+	function layoutView(): void {
+		// Compute the bounds of the iframe-container relative to the window
+		const rect = iframeContainer.getBoundingClientRect();
+		ipcRenderer.invoke('vscode:shellView-layoutActiveView', windowId, rect.x, rect.y, rect.width, rect.height);
+	}
+
+	// Re-layout on resize
+	const resizeObserver = new ResizeObserver(() => layoutView());
+	resizeObserver.observe(iframeContainer);
+
+	return {
+		listDirectory: (path, showHidden) => ipcRenderer.invoke('vscode:shellWorktree-listDirectory', path, showHidden),
+		getWorktrees: repoUris => ipcRenderer.invoke('vscode:shellWorktree-getWorktrees', repoUris),
+		addWorktree: (repoPath, branchName, newBranch) => ipcRenderer.invoke('vscode:shellWorktree-addWorktree', repoPath, branchName, newBranch),
+		removeWorktree: (repoPath, worktreePath) => ipcRenderer.invoke('vscode:shellWorktree-removeWorktree', repoPath, worktreePath),
+		listBranches: repoPath => ipcRenderer.invoke('vscode:shellWorktree-listBranches', repoPath),
+		cloneRepo: (url, destPath) => ipcRenderer.invoke('vscode:shellWorktree-cloneRepo', url, destPath),
+		loadSettings: () => ipcRenderer.invoke('vscode:shellWorktree-loadSettings'),
+		saveSettings: settings => ipcRenderer.invoke('vscode:shellWorktree-saveSettings', settings),
+
+		switchToWorktree(worktreePath: string): void {
+			ipcRenderer.invoke('vscode:shellView-activateWorktree', windowId, worktreePath).then(() => {
+				layoutView();
+			});
+		},
+
+		onWorktreeRemoved(worktreePath: string): void {
+			ipcRenderer.invoke('vscode:shellView-removeView', windowId, worktreePath);
+		}
+	};
+}
 
 class ShellApplication {
 
-	private readonly config: IShellConfiguration;
+	private readonly backend: IShellBackend;
 	private readonly repoListEl: HTMLElement;
 	private readonly iframeContainer: HTMLElement;
 	private readonly iframes = new Map<string, HTMLIFrameElement>();
@@ -46,38 +232,32 @@ class ShellApplication {
 	private repoWorktrees = new Map<string, IWorktreeInfo[]>();
 	private _activePopupDismiss: (() => void) | null = null;
 
-	constructor() {
-		const configElement = document.getElementById('vscode-shell-configuration');
-		const configAttr = configElement?.getAttribute('data-settings');
-		if (!configAttr) {
-			throw new Error('Missing shell configuration element');
-		}
-		this.config = JSON.parse(configAttr);
+	private lastBrowsePath = '';
+
+	constructor(backend?: IShellBackend) {
 		this.repoListEl = document.getElementById('repo-list')!;
 		this.iframeContainer = document.getElementById('iframe-container')!;
 
-		// Load tracked repos from localStorage
-		const stored = localStorage.getItem(STORAGE_KEY);
-		if (stored) {
-			try {
-				this.trackedRepos = JSON.parse(stored);
-			} catch {
-				this.trackedRepos = [];
+		if (backend) {
+			this.backend = backend;
+		} else {
+			// Web mode: read config from meta element
+			const configElement = document.getElementById('vscode-shell-configuration');
+			const configAttr = configElement?.getAttribute('data-settings');
+			if (!configAttr) {
+				throw new Error('Missing shell configuration element');
 			}
+			const config: IShellConfiguration = JSON.parse(configAttr);
+			this.backend = createWebBackend(config, this.iframeContainer, this.iframes, this.iframeLRU);
 		}
 
 		this._setupEventListeners();
 		this._showEmptyState();
 
-		if (this.trackedRepos.length > 0) {
-			this.refreshWorktrees();
-		}
-
 		// Check if URL has ?folder= param — auto-activate that worktree
 		const urlParams = new URLSearchParams(window.location.search);
 		const folderParam = urlParams.get('folder');
 		if (folderParam) {
-			// Extract the path from vscode-remote URI if needed
 			try {
 				const folderUrl = new URL(folderParam);
 				if (folderUrl.protocol === 'vscode-remote:') {
@@ -88,6 +268,22 @@ class ShellApplication {
 			} catch {
 				this.activeWorktreePath = folderParam;
 			}
+		}
+
+		// Load settings from backend (async)
+		this._loadInitialSettings();
+	}
+
+	private async _loadInitialSettings(): Promise<void> {
+		try {
+			const settings = await this.backend.loadSettings();
+			this.trackedRepos = settings.trackedRepositories ?? [];
+			this.lastBrowsePath = settings.lastBrowsePath ?? '';
+			if (this.trackedRepos.length > 0) {
+				this.refreshWorktrees();
+			}
+		} catch (err) {
+			console.error('Failed to load shell settings:', err);
 		}
 	}
 
@@ -101,7 +297,6 @@ class ShellApplication {
 		});
 
 		window.addEventListener('message', event => {
-			// Handle messages from iframes
 			if (event.data?.type === 'shell.switchWorktree') {
 				this.switchToWorktree(event.data.path);
 			}
@@ -123,7 +318,6 @@ class ShellApplication {
 			resizeHandle.classList.remove('dragging');
 			document.body.style.cursor = '';
 			document.body.style.userSelect = '';
-			// Remove iframe pointer-events block
 			this.iframeContainer.style.pointerEvents = '';
 			document.removeEventListener('mousemove', onMouseMove);
 			document.removeEventListener('mouseup', onMouseUp);
@@ -136,17 +330,10 @@ class ShellApplication {
 			resizeHandle.classList.add('dragging');
 			document.body.style.cursor = 'col-resize';
 			document.body.style.userSelect = 'none';
-			// Block iframe from stealing mouse events during drag
 			this.iframeContainer.style.pointerEvents = 'none';
 			document.addEventListener('mousemove', onMouseMove);
 			document.addEventListener('mouseup', onMouseUp);
 		});
-	}
-
-	private _buildPath(...segments: string[]): string {
-		// Join path segments and collapse double slashes (except after protocol like http://)
-		const joined = segments.join('/');
-		return joined.replace(/(?<!:)\/\/+/g, '/');
 	}
 
 	private _showEmptyState(): void {
@@ -258,7 +445,6 @@ class ShellApplication {
 			}
 		};
 
-		// Delay attaching outside-click so the current click doesn't close it
 		setTimeout(() => {
 			document.addEventListener('mousedown', outsideClickHandler);
 		}, 0);
@@ -276,25 +462,9 @@ class ShellApplication {
 		const repoUri = `file://${selectedPath}`;
 		if (!this.trackedRepos.includes(repoUri)) {
 			this.trackedRepos.push(repoUri);
-			this._saveTrackedRepos();
+			this._saveSettings();
 		}
 		await this.refreshWorktrees();
-	}
-
-	private async _fetchDirectoryListing(path: string, showHidden: boolean): Promise<IBrowseResult> {
-		const apiUrl = this._buildPath(this.config.serverBasePath, this.config.productPath, '/api/browse');
-		const response = await fetch(apiUrl, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ path, showHidden })
-		});
-
-		if (!response.ok) {
-			const text = await response.text();
-			throw new Error(text || `HTTP ${response.status}`);
-		}
-
-		return response.json();
 	}
 
 	private async _showFolderPicker(mode: 'browse' | 'cloneDest'): Promise<string | null> {
@@ -361,7 +531,7 @@ class ShellApplication {
 			picker.appendChild(footer);
 			overlay.appendChild(picker);
 
-			let currentPath = localStorage.getItem(LAST_BROWSE_PATH_KEY) || '';
+			let currentPath = this.lastBrowsePath || '';
 			let focusedIndex = -1;
 			let entries: { name: string; isDirectory: boolean }[] = [];
 			let parentPath: string | null = null;
@@ -425,12 +595,13 @@ class ShellApplication {
 			const loadDirectory = async (path: string) => {
 				try {
 					statusText.textContent = 'Loading...';
-					const result = await this._fetchDirectoryListing(path, showHidden);
+					const result = await this.backend.listDirectory(path, showHidden);
 					currentPath = result.path;
 					parentPath = result.parent;
 					entries = result.entries;
 					pathInput.value = currentPath;
-					localStorage.setItem(LAST_BROWSE_PATH_KEY, currentPath);
+					this.lastBrowsePath = currentPath;
+					this._saveSettings();
 					renderEntries();
 				} catch (err) {
 					statusText.textContent = `Error: ${err}`;
@@ -457,7 +628,7 @@ class ShellApplication {
 
 			const pickerKeyHandler = (e: KeyboardEvent) => {
 				if (e.target === pathInput) {
-					return; // let path input handle its own keys
+					return;
 				}
 				const totalCount = (parentPath !== null ? 1 : 0) + entries.length;
 				if (e.key === 'Escape') {
@@ -533,7 +704,6 @@ class ShellApplication {
 	}
 
 	private async _showCloneFlow(): Promise<void> {
-		// Step 1: Get the git URL
 		const gitUrl = await this._showQuickInput({
 			label: 'Enter the repository URL to clone',
 			placeholder: 'https://github.com/user/repo.git'
@@ -542,13 +712,11 @@ class ShellApplication {
 			return;
 		}
 
-		// Step 2: Pick destination directory
 		const destDir = await this._showFolderPicker('cloneDest');
 		if (!destDir) {
 			return;
 		}
 
-		// Derive repo name from URL
 		let repoName = gitUrl.split('/').pop() || 'repo';
 		if (repoName.endsWith('.git')) {
 			repoName = repoName.slice(0, -4);
@@ -570,21 +738,14 @@ class ShellApplication {
 		document.body.appendChild(loadingOverlay);
 
 		try {
-			const apiUrl = this._buildPath(this.config.serverBasePath, this.config.productPath, '/api/clone');
-			const response = await fetch(apiUrl, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ url: gitUrl, destPath })
-			});
-
-			const result = await response.json();
+			const result = await this.backend.cloneRepo(gitUrl, destPath);
 			loadingOverlay.remove();
 
 			if (result.success) {
 				const repoUri = `file://${result.path}`;
 				if (!this.trackedRepos.includes(repoUri)) {
 					this.trackedRepos.push(repoUri);
-					this._saveTrackedRepos();
+					this._saveSettings();
 				}
 				await this.refreshWorktrees();
 			} else {
@@ -598,13 +759,16 @@ class ShellApplication {
 
 	private _removeRepository(repoUri: string): void {
 		this.trackedRepos = this.trackedRepos.filter(r => r !== repoUri);
-		this._saveTrackedRepos();
+		this._saveSettings();
 		this.repoWorktrees.delete(repoUri);
 		this._renderRepoList();
 	}
 
-	private _saveTrackedRepos(): void {
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(this.trackedRepos));
+	private _saveSettings(): void {
+		this.backend.saveSettings({
+			trackedRepositories: this.trackedRepos,
+			lastBrowsePath: this.lastBrowsePath
+		});
 	}
 
 	async refreshWorktrees(): Promise<void> {
@@ -614,19 +778,7 @@ class ShellApplication {
 		}
 
 		try {
-			const apiUrl = this._buildPath(this.config.serverBasePath, this.config.productPath, '/api/worktrees');
-			const response = await fetch(apiUrl, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ repoUris: this.trackedRepos })
-			});
-
-			if (!response.ok) {
-				console.error('Failed to fetch worktrees:', response.statusText);
-				return;
-			}
-
-			const results: IRepoWorktreeResult[] = await response.json();
+			const results = await this.backend.getWorktrees(this.trackedRepos);
 			for (const result of results) {
 				this.repoWorktrees.set(result.repoUri, result.worktrees);
 			}
@@ -640,7 +792,6 @@ class ShellApplication {
 	private _renderRepoList(): void {
 		this.repoListEl.innerHTML = '';
 
-		// Determine which repo (if any) contains the active worktree
 		const hasActiveSession = this.activeWorktreePath !== null;
 		let activeRepoUri: string | null = null;
 		if (hasActiveSession) {
@@ -658,7 +809,6 @@ class ShellApplication {
 			const section = document.createElement('div');
 			section.className = 'repo-section';
 
-			// Repo header
 			const header = document.createElement('div');
 			header.className = 'repo-header';
 
@@ -697,11 +847,9 @@ class ShellApplication {
 			header.appendChild(addWtBtn);
 			header.appendChild(removeBtn);
 
-			// Worktree list
 			const wtList = document.createElement('div');
 			wtList.className = 'worktree-list';
 
-			// Collapse repos that don't contain the active worktree
 			const shouldCollapse = hasActiveSession && repoUri !== activeRepoUri;
 			if (shouldCollapse) {
 				wtList.classList.add('collapsed');
@@ -713,7 +861,6 @@ class ShellApplication {
 				expandIcon.classList.toggle('collapsed', collapsed);
 			});
 
-			// Find the main worktree (first non-bare entry) — don't allow removing it
 			const mainWorktree = worktrees.find(w => !w.isBare);
 
 			for (const wt of worktrees) {
@@ -737,7 +884,6 @@ class ShellApplication {
 					item.appendChild(bareTag);
 				}
 
-				// Show archive button on non-main, non-bare worktrees
 				if (!wt.isBare && wt !== mainWorktree) {
 					const archiveBtn = document.createElement('button');
 					archiveBtn.className = 'archive-btn';
@@ -768,13 +914,11 @@ class ShellApplication {
 
 		const repoPath = repoUri.replace(/^file:\/\//, '');
 
-		// Find the repo header element for positioning
 		const headers = this.repoListEl.querySelectorAll('.repo-header');
 		let anchorEl: HTMLElement | null = null;
 		for (const h of headers) {
 			const btn = h.querySelector('.add-wt-btn');
 			if (btn) {
-				// Check if this header's remove-btn corresponds to this repo
 				const nameEl = h.querySelectorAll('span')[1];
 				if (nameEl) {
 					anchorEl = h as HTMLElement;
@@ -869,17 +1013,10 @@ class ShellApplication {
 		}
 
 		try {
-			const apiUrl = this._buildPath(this.config.serverBasePath, this.config.productPath, '/api/worktree-add');
-			const response = await fetch(apiUrl, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ repoPath, branchName, newBranch: true })
-			});
-
-			const result = await response.json();
+			const result = await this.backend.addWorktree(repoPath, branchName, true);
 			if (result.success) {
 				await this.refreshWorktrees();
-				this.switchToWorktree(result.path);
+				this.switchToWorktree(result.path!);
 			} else {
 				alert(`Failed to add worktree: ${result.error}`);
 			}
@@ -889,16 +1026,9 @@ class ShellApplication {
 	}
 
 	private async _addWorktreeExistingBranch(repoPath: string): Promise<void> {
-		// Fetch branches
 		let branches: string[];
 		try {
-			const apiUrl = this._buildPath(this.config.serverBasePath, this.config.productPath, '/api/branches');
-			const response = await fetch(apiUrl, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ repoPath })
-			});
-			const result = await response.json();
+			const result = await this.backend.listBranches(repoPath);
 			branches = result.branches ?? [];
 		} catch (err) {
 			alert(`Failed to fetch branches: ${err}`);
@@ -916,17 +1046,10 @@ class ShellApplication {
 		}
 
 		try {
-			const apiUrl = this._buildPath(this.config.serverBasePath, this.config.productPath, '/api/worktree-add');
-			const response = await fetch(apiUrl, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ repoPath, branchName: selected, newBranch: false })
-			});
-
-			const result = await response.json();
+			const result = await this.backend.addWorktree(repoPath, selected, false);
 			if (result.success) {
 				await this.refreshWorktrees();
-				this.switchToWorktree(result.path);
+				this.switchToWorktree(result.path!);
 			} else {
 				alert(`Failed to add worktree: ${result.error}`);
 			}
@@ -1037,33 +1160,16 @@ class ShellApplication {
 		const repoPath = repoUri.replace(/^file:\/\//, '');
 
 		try {
-			const apiUrl = this._buildPath(this.config.serverBasePath, this.config.productPath, '/api/worktree-remove');
-			const response = await fetch(apiUrl, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ repoPath, worktreePath: wt.path })
-			});
-
-			const result = await response.json();
+			const result = await this.backend.removeWorktree(repoPath, wt.path);
 			if (!result.success) {
 				alert(`Failed to remove worktree: ${result.error}`);
 				return;
 			}
 
-			// If the removed worktree was active, clear the iframe and show empty state
 			if (this.activeWorktreePath === wt.path) {
-				const iframe = this.iframes.get(wt.path);
-				if (iframe) {
-					iframe.remove();
-					this.iframes.delete(wt.path);
-					const lruIdx = this.iframeLRU.indexOf(wt.path);
-					if (lruIdx !== -1) {
-						this.iframeLRU.splice(lruIdx, 1);
-					}
-				}
+				this.backend.onWorktreeRemoved(wt.path);
 				this.activeWorktreePath = null;
 
-				// Update browser URL to remove folder param
 				const newUrl = new URL(window.location.href);
 				newUrl.searchParams.delete('folder');
 				history.replaceState(null, '', newUrl.toString());
@@ -1085,47 +1191,7 @@ class ShellApplication {
 		this.activeWorktreePath = worktreePath;
 		this._removeEmptyState();
 
-		// Hide all iframes
-		for (const iframe of this.iframes.values()) {
-			iframe.classList.add('hidden');
-		}
-
-		// Show or create the iframe for this worktree
-		let iframe = this.iframes.get(worktreePath);
-		if (iframe) {
-			iframe.classList.remove('hidden');
-			// Update LRU
-			const idx = this.iframeLRU.indexOf(worktreePath);
-			if (idx !== -1) {
-				this.iframeLRU.splice(idx, 1);
-			}
-			this.iframeLRU.push(worktreePath);
-		} else {
-			// Evict if at capacity
-			while (this.iframes.size >= MAX_IFRAMES && this.iframeLRU.length > 0) {
-				const evictPath = this.iframeLRU.shift()!;
-				const evictIframe = this.iframes.get(evictPath);
-				if (evictIframe) {
-					evictIframe.remove();
-					this.iframes.delete(evictPath);
-				}
-			}
-
-			iframe = document.createElement('iframe');
-			const folderUri = `vscode-remote://${this.config.remoteAuthority}${worktreePath}`;
-			const iframeUrl = this._buildPath(this.config.serverBasePath, this.config.productPath, `/?folder=${encodeURIComponent(folderUri)}&embedded=true`);
-			iframe.src = iframeUrl;
-			iframe.setAttribute('allow', 'clipboard-read; clipboard-write');
-			this.iframeContainer.appendChild(iframe);
-			this.iframes.set(worktreePath, iframe);
-			this.iframeLRU.push(worktreePath);
-		}
-
-		// Update browser URL
-		const folderUri = `vscode-remote://${this.config.remoteAuthority}${worktreePath}`;
-		const newUrl = new URL(window.location.href);
-		newUrl.searchParams.set('folder', folderUri);
-		history.replaceState(null, '', newUrl.toString());
+		this.backend.switchToWorktree(worktreePath);
 
 		// Update active styling in sidebar
 		this.repoListEl.querySelectorAll('.worktree-item').forEach(el => {
@@ -1140,4 +1206,15 @@ class ShellApplication {
 	}
 }
 
-new ShellApplication();
+// Export for Electron shell entry point
+interface IShellWindow extends Window {
+	ShellApplication: typeof ShellApplication;
+	createElectronBackend: typeof createElectronBackend;
+}
+(window as unknown as IShellWindow).ShellApplication = ShellApplication;
+(window as unknown as IShellWindow).createElectronBackend = createElectronBackend;
+
+// Auto-instantiate in web mode (when config meta element is present)
+if (document.getElementById('vscode-shell-configuration')) {
+	new ShellApplication();
+}

@@ -165,7 +165,6 @@ export class AgentTerminalViewPane extends ViewPane {
 		const store = new DisposableStore();
 
 		// Create tab element (insert before the "+" button)
-		const addButton = this._addButton;
 		const tabElement = document.createElement('div');
 		tabElement.className = 'agent-terminal-tab';
 		tabElement.dataset.tabId = id;
@@ -218,7 +217,6 @@ export class AgentTerminalViewPane extends ViewPane {
 		const store = new DisposableStore();
 
 		// Create tab element (insert before the "+" button)
-		const addButton = this._addButton;
 		const tabElement = document.createElement('div');
 		tabElement.className = 'agent-terminal-tab';
 		tabElement.dataset.tabId = id;

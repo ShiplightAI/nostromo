@@ -158,6 +158,9 @@ export class WebClientServer {
 			if (pathname === '/api/branches') {
 				return this._handleBranchesApi(req, res);
 			}
+			if (pathname === '/api/shell-settings') {
+				return this._handleShellSettingsApi(req, res);
+			}
 			if (pathname === CALLBACK_PATH) {
 				// callback support
 				return this._handleCallback(res);
@@ -923,6 +926,53 @@ export class WebClientServer {
 			});
 			return void res.end(responseData);
 		}
+	}
+
+	/**
+	 * Handle GET/POST requests for /api/shell-settings — persist shell sidebar settings
+	 */
+	private async _handleShellSettingsApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		const settingsPath = join(this._environmentService.appSettingsHome.fsPath, 'shellSettings.json');
+
+		if (req.method === 'GET') {
+			try {
+				const data = await promises.readFile(settingsPath, 'utf-8');
+				const responseData = data;
+				res.writeHead(200, {
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(responseData)
+				});
+				return void res.end(responseData);
+			} catch {
+				const responseData = JSON.stringify({ trackedRepositories: [], lastBrowsePath: '' });
+				res.writeHead(200, {
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(responseData)
+				});
+				return void res.end(responseData);
+			}
+		}
+
+		if (req.method === 'POST') {
+			const body = await this._readRequestBody(req);
+			try {
+				// Validate JSON
+				JSON.parse(body);
+				const dir = dirname(settingsPath);
+				await promises.mkdir(dir, { recursive: true });
+				await promises.writeFile(settingsPath, body, 'utf-8');
+				const responseData = JSON.stringify({ success: true });
+				res.writeHead(200, {
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(responseData)
+				});
+				return void res.end(responseData);
+			} catch (e) {
+				return serveError(req, res, 400, 'Invalid request body');
+			}
+		}
+
+		return serveError(req, res, 405, 'Method not allowed');
 	}
 
 	private _getScriptCspHashes(content: string): string[] {
