@@ -16,7 +16,7 @@ import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
-import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
 import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_EMPTY_WINDOW_SIZE, DEFAULT_WORKSPACE_WINDOW_SIZE, hasNativeMenu, MenuSettings } from '../../platform/window/common/window.js';
 import { IHostService } from '../services/host/browser/host.js';
@@ -44,7 +44,6 @@ import { DeferredPromise, Promises } from '../../base/common/async.js';
 import { IBannerService } from '../services/banner/browser/bannerService.js';
 import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
 import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
-import { WorktreePanelPart } from './parts/worktreepanel/worktreePanelPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
@@ -274,8 +273,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private auxiliaryBarPartView!: ISerializableView;
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
-	private worktreePanelPartView!: ISerializableView;
-
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
 	private configurationService!: IConfigurationService;
@@ -331,9 +328,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.notificationService = accessor.get(INotificationService);
 		this.statusBarService = accessor.get(IStatusbarService);
 		accessor.get(IBannerService);
-
-		// Worktree Panel Part
-		accessor.get(IInstantiationService).createInstance(WorktreePanelPart);
 
 		// Listeners
 		this.registerLayoutListeners();
@@ -1327,8 +1321,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN);
 			case Parts.BANNER_PART:
 				return this.initialized ? this.workbenchGrid.isViewVisible(this.bannerPartView) : false;
-			case Parts.WORKTREE_PANEL_PART:
-				return !this.environmentService.remoteAuthority;
 			default:
 				return false; // any other part cannot be hidden
 		}
@@ -1593,8 +1585,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
-		const worktreePanel = this.getPart(Parts.WORKTREE_PANEL_PART);
-
 		// View references for all parts
 		this.titleBarPartView = titleBar;
 		this.bannerPartView = bannerPart;
@@ -1604,7 +1594,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelPartView = panelPart;
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
-		this.worktreePanelPartView = worktreePanel;
 
 		const viewMap: Record<string, ISerializableView> = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
@@ -1614,8 +1603,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
 			[Parts.STATUSBAR_PART]: this.statusBarPartView,
-			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView,
-			[Parts.WORKTREE_PANEL_PART]: this.worktreePanelPartView
+			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
 		};
 
 		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
@@ -1630,12 +1618,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
-		// Hide worktree panel in web (remote) mode — the shell page provides worktree switching
-		if (this.environmentService.remoteAuthority) {
-			this.workbenchGrid.setViewVisible(this.worktreePanelPartView, false);
-		}
-
-		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart, worktreePanel]) {
+		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
 				if (!this.inMaximizedAuxiliaryBarTransition) {
 
@@ -2501,10 +2484,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 	}
 
-	private arrangeMiddleSectionNodes(nodes: { editor: ISerializedNode; panel: ISerializedNode; activityBar: ISerializedNode; sideBar: ISerializedNode; auxiliaryBar: ISerializedNode; worktreePanel: ISerializedNode }, availableWidth: number, availableHeight: number): ISerializedNode[] {
-		const worktreePanelSize = nodes.worktreePanel.size;
-		availableWidth -= worktreePanelSize;
-
+	private arrangeMiddleSectionNodes(nodes: { editor: ISerializedNode; panel: ISerializedNode; activityBar: ISerializedNode; sideBar: ISerializedNode; auxiliaryBar: ISerializedNode }, availableWidth: number, availableHeight: number): ISerializedNode[] {
 		const activityBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) ? 0 : nodes.activityBar.size;
 		const sideBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN) ? 0 : nodes.sideBar.size;
 		const auxiliaryBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN) ? 0 : nodes.auxiliaryBar.size;
@@ -2576,9 +2556,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		// Worktree panel is always the leftmost element
-		result.splice(0, 0, nodes.worktreePanel);
-
 		return result;
 	}
 
@@ -2587,8 +2564,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.SIDEBAR_SIZE);
 		const auxiliaryBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE);
 		const panelSize = this.stateModel.getInitializationValue(LayoutStateKeys.PANEL_SIZE);
-		const worktreePanelSize = this.stateModel.getInitializationValue(LayoutStateKeys.WORKTREE_PANEL_SIZE);
-
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const bannerHeight = this.bannerPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
@@ -2645,21 +2620,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
 		};
 
-		const showWorktreePanel = !this.environmentService.remoteAuthority;
-		const worktreePanelNode: ISerializedLeafNode = {
-			type: 'leaf',
-			data: { type: Parts.WORKTREE_PANEL_PART },
-			size: showWorktreePanel ? worktreePanelSize : 0,
-			visible: showWorktreePanel
-		};
-
 		const middleSection: ISerializedNode[] = this.arrangeMiddleSectionNodes({
 			activityBar: activityBarNode,
 			auxiliaryBar: auxiliaryBarNode,
 			editor: editorNode,
 			panel: panelNode,
-			sideBar: sideBarNode,
-			worktreePanel: worktreePanelNode
+			sideBar: sideBarNode
 		}, width, middleSectionHeight);
 
 		const result: ISerializedGrid = {
@@ -2804,7 +2770,6 @@ const LayoutStateKeys = {
 	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 500),
 	PANEL_SIZE: new InitializationStateKey<number>('panel.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
-	WORKTREE_PANEL_SIZE: new InitializationStateKey<number>('worktreePanel.size', StorageScope.PROFILE, StorageTarget.MACHINE, 200),
 
 	// Part State
 	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.PROFILE, StorageTarget.MACHINE, 300),

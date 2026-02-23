@@ -7,6 +7,7 @@ import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import { dirname, join, resolve } from '../../../base/common/path.js';
 import { homedir } from 'os';
+import { BrowserWindow, dialog } from 'electron';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -88,6 +89,18 @@ export class ShellWorktreeService extends Disposable {
 
 		validatedIpcMain.handle('vscode:shellWorktree-saveSettings', (_event, settings: IShellSettings) => {
 			return this.saveSettings(settings);
+		});
+
+		validatedIpcMain.handle('vscode:shellWorktree-showOpenDialog', async (_event) => {
+			const parentWindow = BrowserWindow.fromWebContents(_event.sender);
+			const result = await dialog.showOpenDialog(parentWindow ?? BrowserWindow.getFocusedWindow()!, {
+				properties: ['openDirectory'],
+				title: 'Select Folder'
+			});
+			if (result.canceled || result.filePaths.length === 0) {
+				return null;
+			}
+			return result.filePaths[0];
 		});
 	}
 
@@ -239,6 +252,7 @@ export class ShellWorktreeService extends Disposable {
 		validatedIpcMain.removeHandler('vscode:shellWorktree-cloneRepo');
 		validatedIpcMain.removeHandler('vscode:shellWorktree-loadSettings');
 		validatedIpcMain.removeHandler('vscode:shellWorktree-saveSettings');
+		validatedIpcMain.removeHandler('vscode:shellWorktree-showOpenDialog');
 		super.dispose();
 	}
 }

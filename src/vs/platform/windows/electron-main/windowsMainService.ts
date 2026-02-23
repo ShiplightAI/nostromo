@@ -1571,7 +1571,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			isSessionsWindow: isWorkspaceIdentifier(options.workspace) && isEqual(options.workspace.configPath, this.environmentMainService.agentSessionsWorkspace),
 
-			isShellWindow: !!process.env['SHELL_MODE'],
+			isShellWindow: process.env['SHELL_MODE'] !== '0',
 		};
 
 		// New window

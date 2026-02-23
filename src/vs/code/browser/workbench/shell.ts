@@ -5,20 +5,20 @@
 
 /* eslint-disable no-restricted-syntax, no-restricted-globals */
 
-interface IWorktreeInfo {
+export interface IWorktreeInfo {
 	path: string;
 	head: string;
 	branch: string;
 	isBare: boolean;
 }
 
-interface IRepoWorktreeResult {
+export interface IRepoWorktreeResult {
 	repoUri: string;
 	worktrees: IWorktreeInfo[];
 	error?: string;
 }
 
-interface IBrowseResult {
+export interface IBrowseResult {
 	path: string;
 	entries: { name: string; isDirectory: boolean }[];
 	parent: string | null;
@@ -29,12 +29,12 @@ interface IBrowseResult {
  * Web mode uses fetch() to server APIs + iframe creation.
  * Electron mode uses IPC calls + WebContentsView management.
  */
-interface IShellSettings {
+export interface IShellSettings {
 	trackedRepositories: string[];
 	lastBrowsePath: string;
 }
 
-interface IShellBackend {
+export interface IShellBackend {
 	listDirectory(path: string, showHidden: boolean): Promise<IBrowseResult>;
 	getWorktrees(repoUris: string[]): Promise<IRepoWorktreeResult[]>;
 	addWorktree(repoPath: string, branchName: string, newBranch: boolean): Promise<{ success: boolean; path?: string; error?: string }>;
@@ -45,6 +45,10 @@ interface IShellBackend {
 	saveSettings(settings: IShellSettings): Promise<void>;
 	switchToWorktree(worktreePath: string): void;
 	onWorktreeRemoved(worktreePath: string): void;
+	/** Native folder dialog (electron only). Returns selected path or null. */
+	showOpenDialog?(): Promise<string | null>;
+	/** Hide/show the active WebContentsView so HTML overlays are visible (electron only). */
+	setActiveViewVisible?(visible: boolean): void;
 }
 
 interface IShellConfiguration {
@@ -178,49 +182,7 @@ function createWebBackend(config: IShellConfiguration, iframeContainer: HTMLElem
 	};
 }
 
-/**
- * Creates an Electron IPC-based backend that communicates with main process services
- * and uses WebContentsView for workbench instances.
- */
-interface IShellIpcRenderer {
-	invoke(channel: string, ...args: unknown[]): Promise<unknown>;
-}
-
-function createElectronBackend(windowId: number, ipcRenderer: IShellIpcRenderer, iframeContainer: HTMLElement): IShellBackend {
-
-	function layoutView(): void {
-		// Compute the bounds of the iframe-container relative to the window
-		const rect = iframeContainer.getBoundingClientRect();
-		ipcRenderer.invoke('vscode:shellView-layoutActiveView', windowId, rect.x, rect.y, rect.width, rect.height);
-	}
-
-	// Re-layout on resize
-	const resizeObserver = new ResizeObserver(() => layoutView());
-	resizeObserver.observe(iframeContainer);
-
-	return {
-		listDirectory: (path, showHidden) => ipcRenderer.invoke('vscode:shellWorktree-listDirectory', path, showHidden),
-		getWorktrees: repoUris => ipcRenderer.invoke('vscode:shellWorktree-getWorktrees', repoUris),
-		addWorktree: (repoPath, branchName, newBranch) => ipcRenderer.invoke('vscode:shellWorktree-addWorktree', repoPath, branchName, newBranch),
-		removeWorktree: (repoPath, worktreePath) => ipcRenderer.invoke('vscode:shellWorktree-removeWorktree', repoPath, worktreePath),
-		listBranches: repoPath => ipcRenderer.invoke('vscode:shellWorktree-listBranches', repoPath),
-		cloneRepo: (url, destPath) => ipcRenderer.invoke('vscode:shellWorktree-cloneRepo', url, destPath),
-		loadSettings: () => ipcRenderer.invoke('vscode:shellWorktree-loadSettings'),
-		saveSettings: settings => ipcRenderer.invoke('vscode:shellWorktree-saveSettings', settings),
-
-		switchToWorktree(worktreePath: string): void {
-			ipcRenderer.invoke('vscode:shellView-activateWorktree', windowId, worktreePath).then(() => {
-				layoutView();
-			});
-		},
-
-		onWorktreeRemoved(worktreePath: string): void {
-			ipcRenderer.invoke('vscode:shellView-removeView', windowId, worktreePath);
-		}
-	};
-}
-
-class ShellApplication {
+export class ShellApplication {
 
 	private readonly backend: IShellBackend;
 	private readonly repoListEl: HTMLElement;
@@ -375,6 +337,19 @@ class ShellApplication {
 		}
 	}
 
+	/**
+	 * Temporarily hides the active WebContentsView (if any) while showing
+	 * an HTML overlay, then restores it. No-op in web mode.
+	 */
+	private async _withOverlay<T>(fn: () => Promise<T>): Promise<T> {
+		this.backend.setActiveViewVisible?.(false);
+		try {
+			return await fn();
+		} finally {
+			this.backend.setActiveViewVisible?.(true);
+		}
+	}
+
 	private _dismissActivePopup(): void {
 		if (this._activePopupDismiss) {
 			this._activePopupDismiss();
@@ -455,7 +430,12 @@ class ShellApplication {
 	}
 
 	private async _browseAndAddRepo(): Promise<void> {
-		const selectedPath = await this._showFolderPicker('browse');
+		let selectedPath: string | null;
+		if (this.backend.showOpenDialog) {
+			selectedPath = await this.backend.showOpenDialog();
+		} else {
+			selectedPath = await this._showFolderPicker('browse');
+		}
 		if (!selectedPath) {
 			return;
 		}
@@ -704,15 +684,20 @@ class ShellApplication {
 	}
 
 	private async _showCloneFlow(): Promise<void> {
-		const gitUrl = await this._showQuickInput({
+		const gitUrl = await this._withOverlay(() => this._showQuickInput({
 			label: 'Enter the repository URL to clone',
 			placeholder: 'https://github.com/user/repo.git'
-		});
+		}));
 		if (!gitUrl) {
 			return;
 		}
 
-		const destDir = await this._showFolderPicker('cloneDest');
+		let destDir: string | null;
+		if (this.backend.showOpenDialog) {
+			destDir = await this.backend.showOpenDialog();
+		} else {
+			destDir = await this._showFolderPicker('cloneDest');
+		}
 		if (!destDir) {
 			return;
 		}
@@ -1004,10 +989,10 @@ class ShellApplication {
 	}
 
 	private async _addWorktreeNewBranch(repoPath: string): Promise<void> {
-		const branchName = await this._showQuickInput({
+		const branchName = await this._withOverlay(() => this._showQuickInput({
 			label: 'Enter new branch name',
 			placeholder: 'feature/my-branch'
-		});
+		}));
 		if (!branchName) {
 			return;
 		}
@@ -1040,7 +1025,7 @@ class ShellApplication {
 			return;
 		}
 
-		const selected = await this._showBranchPicker(branches);
+		const selected = await this._withOverlay(() => this._showBranchPicker(branches));
 		if (!selected) {
 			return;
 		}
@@ -1205,14 +1190,6 @@ class ShellApplication {
 		});
 	}
 }
-
-// Export for Electron shell entry point
-interface IShellWindow extends Window {
-	ShellApplication: typeof ShellApplication;
-	createElectronBackend: typeof createElectronBackend;
-}
-(window as unknown as IShellWindow).ShellApplication = ShellApplication;
-(window as unknown as IShellWindow).createElectronBackend = createElectronBackend;
 
 // Auto-instantiate in web mode (when config meta element is present)
 if (document.getElementById('vscode-shell-configuration')) {

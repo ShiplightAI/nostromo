@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebContentsView } from 'electron';
+import { BrowserWindow, WebContentsView } from 'electron';
 import { createHash } from 'crypto';
 import { FileAccess } from '../../../base/common/network.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
@@ -22,7 +22,7 @@ interface IManagedView {
 }
 
 /**
- * Manages WebContentsView instances embedded in shell BrowserWindows.
+ * Manages WebContentsView instances embedded in BrowserWindows.
  * Each view hosts a full VS Code workbench for a specific worktree folder.
  * Hidden views keep their processes alive so agents continue running.
  */
@@ -30,7 +30,7 @@ export class ShellViewManager extends Disposable {
 
 	private readonly views = new Map<string, IManagedView>(); // key: `${windowId}:${folderPath}`
 	private readonly activeViews = new Map<number, string>(); // windowId -> active folderPath
-	private baseConfig: INativeWindowConfiguration | undefined;
+	private readonly baseConfigs = new Map<number, INativeWindowConfiguration>(); // windowId -> config
 
 	constructor(
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
@@ -43,7 +43,11 @@ export class ShellViewManager extends Disposable {
 
 	private _registerIpcHandlers(): void {
 		validatedIpcMain.handle('vscode:shellView-setBaseConfig', async (_event, config: INativeWindowConfiguration) => {
-			this.baseConfig = config;
+			// Cache config keyed by the sender's window ID
+			const senderWindow = BrowserWindow.fromWebContents(_event.sender);
+			if (senderWindow) {
+				this.baseConfigs.set(senderWindow.id, config);
+			}
 		});
 
 		validatedIpcMain.handle('vscode:shellView-activateWorktree', (_event, windowId: number, folderPath: string) => {
@@ -56,6 +60,10 @@ export class ShellViewManager extends Disposable {
 
 		validatedIpcMain.handle('vscode:shellView-removeView', async (_event, windowId: number, folderPath: string) => {
 			this.removeView(windowId, folderPath);
+		});
+
+		validatedIpcMain.handle('vscode:shellView-setActiveViewVisible', async (_event, windowId: number, visible: boolean) => {
+			this.setActiveViewVisible(windowId, visible);
 		});
 	}
 
@@ -77,7 +85,11 @@ export class ShellViewManager extends Disposable {
 		let managed = this.views.get(viewKey);
 
 		if (!managed) {
-			managed = this._createView(windowId, folderPath, parentWindow);
+			const baseConfig = this.baseConfigs.get(windowId);
+			if (!baseConfig) {
+				this.logService.warn('[ShellViewManager] No base config available, view may fail to load');
+			}
+			managed = this._createView(windowId, folderPath, parentWindow, baseConfig);
 			this.views.set(viewKey, managed);
 		}
 
@@ -97,6 +109,19 @@ export class ShellViewManager extends Disposable {
 		const managed = this.views.get(viewKey);
 		if (managed) {
 			managed.view.setBounds({ x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) });
+		}
+	}
+
+	setActiveViewVisible(windowId: number, visible: boolean): void {
+		const activePath = this.activeViews.get(windowId);
+		if (!activePath) {
+			return;
+		}
+
+		const viewKey = `${windowId}:${activePath}`;
+		const managed = this.views.get(viewKey);
+		if (managed) {
+			managed.view.setVisible(visible);
 		}
 	}
 
@@ -123,34 +148,15 @@ export class ShellViewManager extends Disposable {
 		this.logService.trace(`[ShellViewManager] Removed view for ${folderPath} from window ${windowId}`);
 	}
 
-	private _createView(windowId: number, folderPath: string, parentWindow: Electron.BrowserWindow): IManagedView {
+	private _createView(windowId: number, folderPath: string, parentWindow: Electron.BrowserWindow, baseConfig: INativeWindowConfiguration | undefined): IManagedView {
 		// Create config object URL (same pattern as CodeWindow)
 		const configObjectUrl = this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>();
 
-		// Build a full INativeWindowConfiguration by cloning the shell window's config
+		// Build a full INativeWindowConfiguration by cloning the parent window's config
 		// and replacing the workspace with the target folder
 		const folderUri = URI.file(folderPath);
 		const folderId = createHash('md5').update(folderUri.toString()).digest('hex');
 		const workspaceIdentifier = { id: folderId, uri: folderUri };
-
-		if (this.baseConfig) {
-			const viewConfig: INativeWindowConfiguration = {
-				...this.baseConfig,
-				windowId: -1,
-				workspace: workspaceIdentifier,
-				isShellWindow: false,
-				// Clear file-open params from base config
-				filesToOpenOrCreate: undefined,
-				filesToDiff: undefined,
-				filesToMerge: undefined,
-				filesToWait: undefined,
-				// Clear backup path (each view gets its own)
-				backupPath: undefined,
-			};
-			configObjectUrl.update(viewConfig);
-		} else {
-			this.logService.warn('[ShellViewManager] No base config available, view may fail to load');
-		}
 
 		const view = new WebContentsView({
 			webPreferences: {
@@ -164,8 +170,30 @@ export class ShellViewManager extends Disposable {
 			}
 		});
 
+		// Use the WebContentsView's own webContents.id as the windowId for the
+		// embedded workbench. This gives each view a unique identity so their
+		// lifecycle events don't conflict. The utility process resolves the
+		// webContents directly via webContents.fromId() for port delivery,
+		// and finds the parent BrowserWindow for lifecycle binding.
+		if (baseConfig) {
+			const viewConfig: INativeWindowConfiguration = {
+				...baseConfig,
+				windowId: view.webContents.id,
+				workspace: workspaceIdentifier,
+				// Clear file-open params from base config
+				filesToOpenOrCreate: undefined,
+				filesToDiff: undefined,
+				filesToMerge: undefined,
+				filesToWait: undefined,
+				// Clear backup path (each view gets its own)
+				backupPath: undefined,
+			};
+			configObjectUrl.update(viewConfig);
+		}
+
 		// Load the workbench HTML (same URL as normal windows)
 		const workbenchUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
+		this.logService.info(`[ShellViewManager] Loading workbench URL: ${workbenchUrl}`);
 		view.webContents.loadURL(workbenchUrl);
 
 		// Add to parent window
@@ -201,6 +229,7 @@ export class ShellViewManager extends Disposable {
 		validatedIpcMain.removeHandler('vscode:shellView-activateWorktree');
 		validatedIpcMain.removeHandler('vscode:shellView-layoutActiveView');
 		validatedIpcMain.removeHandler('vscode:shellView-removeView');
+		validatedIpcMain.removeHandler('vscode:shellView-setActiveViewVisible');
 		super.dispose();
 	}
 }

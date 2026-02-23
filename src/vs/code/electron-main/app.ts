@@ -255,6 +255,14 @@ export class CodeApplication extends Disposable {
 				if (frame.processId === window.webContents.mainFrame.processId) {
 					return true;
 				}
+
+				// Also allow requests from child WebContentsViews (e.g. shell worktree views)
+				for (const childView of window.contentView.children) {
+					const webContentsView = childView as Electron.WebContentsView | undefined;
+					if (webContentsView?.webContents?.mainFrame.processId === frame.processId) {
+						return true;
+					}
+				}
 			}
 
 			return false;
@@ -1290,11 +1298,9 @@ export class CodeApplication extends Disposable {
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
 
-		// Shell Worktree Service (browse, git operations for shell sidebar)
-		if (process.env['SHELL_MODE']) {
-			disposables.add(this.mainInstantiationService.createInstance(ShellWorktreeService));
-			disposables.add(this.mainInstantiationService.createInstance(ShellViewManager));
-		}
+		// Shell Worktree Service (browse, git operations for worktree sidebar)
+		disposables.add(this.mainInstantiationService.createInstance(ShellWorktreeService));
+		disposables.add(this.mainInstantiationService.createInstance(ShellViewManager));
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
