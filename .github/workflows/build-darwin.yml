@@ -3,6 +3,10 @@ name: Build macOS DMG
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Version tag (e.g. v0.1.0). Required for release creation.'
+        type: string
+        required: true
       create_release:
         description: 'Create a GitHub release with the DMG'
         type: boolean
@@ -122,13 +126,13 @@ jobs:
       - name: Rename DMG
         run: |
           DMG_FILE=$(ls .build/darwin-dmg/*.dmg)
-          mv "$DMG_FILE" ".build/darwin-dmg/Tachikoma-darwin-arm64.dmg"
+          mv "$DMG_FILE" ".build/darwin-dmg/Tachikoma-${{ inputs.version }}-darwin-arm64.dmg"
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
           name: dmg-darwin-arm64
-          path: .build/darwin-dmg/Tachikoma-darwin-arm64.dmg
+          path: .build/darwin-dmg/Tachikoma-*.dmg
 
   release:
     name: Create Release
@@ -148,7 +152,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Tachikoma ${{ github.ref_name }}"
+          tag_name: ${{ inputs.version }}
+          name: "Tachikoma ${{ inputs.version }}"
           draft: true
           files: artifacts/*.dmg
           generate_release_notes: true
