@@ -16,6 +16,27 @@ html, body {
 	display: flex;
 }
 
+/* When shell-titlebar is present (Electron), switch body to column layout */
+body:has(#shell-titlebar) {
+	flex-direction: column;
+}
+
+/* Draggable title bar region for Electron (titleBarStyle: hidden) */
+#shell-titlebar {
+	-webkit-app-region: drag;
+	height: 38px;
+	flex-shrink: 0;
+	background-color: #252526;
+	border-bottom: 1px solid #3c3c3c;
+}
+
+/* Main content area below title bar */
+#shell-main {
+	flex: 1;
+	display: flex;
+	overflow: hidden;
+}
+
 #shell-sidebar {
 	width: 250px;
 	min-width: 200px;
