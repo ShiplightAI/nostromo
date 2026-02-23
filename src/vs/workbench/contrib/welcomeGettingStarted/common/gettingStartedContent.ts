@@ -287,12 +287,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 
 	{
 		id: 'SetupWeb',
-		title: localize('gettingStarted.setupWeb.title', "Get Started with Shiplight Agent Hub"),
+		title: localize('gettingStarted.setupWeb.title', "Get Started with Tachikoma"),
 		description: localize('gettingStarted.setupWeb.description', "Run multiple agents in parallel, monitor their work, and review changes"),
 		isFeatured: true,
 		icon: setupIcon,
 		when: 'isWeb',
-		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Shiplight Agent Hub'),
+		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Tachikoma'),
 		content: {
 			type: 'steps',
 			steps: [
