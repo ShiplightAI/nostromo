@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 
 /**
@@ -57,11 +57,8 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return getAgentCanContinueIn(type);
 	}
 
-	protected override _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
-		if (isFirstPartyAgentSessionProvider(sessionTypeItem.type)) {
-			return { label: localize('continueIn', "Continue In"), order: 1, showHeader: true };
-		}
-		return { label: localize('continueInThirdParty', "Continue In (Third Party)"), order: 2, showHeader: false };
+	protected override _getSessionCategory(_sessionTypeItem: ISessionTypeItem) {
+		return { label: localize('continueIn', "Continue In"), order: 1, showHeader: true };
 	}
 
 	protected override _getLearnMore(): IAction {

@@ -1594,11 +1594,13 @@ export interface IClearEditingSessionConfirmationOptions {
 /**
  * Clears the current chat session and starts a new one, preserving
  * the session type (e.g. Claude, Cloud, Background) for non-local sessions
- * in the sidebar.
+ * in the sidebar. When no session type is specified and no existing session,
+ * falls back to the user's configured default agent provider.
  */
-export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType?: string): Promise<void> {
+export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType?: string, configurationService?: IConfigurationService): Promise<void> {
 	const currentResource = widget.viewModel?.model.sessionResource;
-	const newSessionType = sessionType ?? (currentResource ? getChatSessionType(currentResource) : localChatSessionType);
+	const defaultProvider = configurationService?.getValue<string>(ChatConfiguration.DefaultAgentProvider) ?? localChatSessionType;
+	const newSessionType = sessionType ?? (currentResource ? getChatSessionType(currentResource) : defaultProvider);
 	if (isIChatViewViewContext(widget.viewContext) && newSessionType !== localChatSessionType) {
 		// For the sidebar, we need to explicitly load a session with the same type
 		const newResource = URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` });

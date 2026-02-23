@@ -25,7 +25,8 @@ export function isBuiltInAgentSessionProvider(provider: string): boolean {
 	return provider === AgentSessionProviders.Local ||
 		provider === AgentSessionProviders.Background ||
 		provider === AgentSessionProviders.Cloud ||
-		provider === AgentSessionProviders.Claude;
+		provider === AgentSessionProviders.Claude ||
+		provider === AgentSessionProviders.Codex;
 }
 
 export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
@@ -82,30 +83,14 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 	}
 }
 
-export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders): boolean {
-	switch (provider) {
-		case AgentSessionProviders.Local:
-		case AgentSessionProviders.Background:
-		case AgentSessionProviders.Cloud:
-			return true;
-		case AgentSessionProviders.Claude:
-		case AgentSessionProviders.Codex:
-		case AgentSessionProviders.Growth:
-			return false;
-	}
+export function isFirstPartyAgentSessionProvider(_provider: AgentSessionProviders): boolean {
+	// All agent session providers are treated as equal peers
+	return true;
 }
 
-export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
-	switch (provider) {
-		case AgentSessionProviders.Local:
-		case AgentSessionProviders.Background:
-		case AgentSessionProviders.Cloud:
-			return true;
-		case AgentSessionProviders.Claude:
-		case AgentSessionProviders.Codex:
-		case AgentSessionProviders.Growth:
-			return false;
-	}
+export function getAgentCanContinueIn(_provider: AgentSessionProviders): boolean {
+	// All agent session providers support continue-in
+	return true;
 }
 
 export function getAgentSessionProviderDescription(provider: AgentSessionProviders): string {
