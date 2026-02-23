@@ -168,7 +168,7 @@ export class AgentTerminalViewPane extends ViewPane {
 		const tabElement = document.createElement('div');
 		tabElement.className = 'agent-terminal-tab';
 		tabElement.dataset.tabId = id;
-		this._tabBar.insertBefore(tabElement, addButton ?? null);
+		this._tabBar.insertBefore(tabElement, this._addButton ?? null);
 
 		// Label
 		const labelElement = append(tabElement, $('span.tab-label'));
@@ -220,7 +220,7 @@ export class AgentTerminalViewPane extends ViewPane {
 		const tabElement = document.createElement('div');
 		tabElement.className = 'agent-terminal-tab';
 		tabElement.dataset.tabId = id;
-		this._tabBar.insertBefore(tabElement, addButton ?? null);
+		this._tabBar.insertBefore(tabElement, this._addButton ?? null);
 
 		// Label
 		const labelElement = append(tabElement, $('span.tab-label'));
