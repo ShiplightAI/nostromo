@@ -245,7 +245,7 @@ export class AgentTerminalViewPane extends ViewPane {
 					isFeatureTerminal: true,
 					hideFromUser: true,
 				},
-				location: TerminalLocation.Editor,
+				location: TerminalLocation.Panel,
 			});
 
 			await terminalInstance.xtermReadyPromise;

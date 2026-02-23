@@ -122,6 +122,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 				return activeHostTerminal;
 			}
 		}
+		// Check backgrounded terminals (e.g. hidden agent terminals rendered in the auxiliary bar)
+		for (const bg of this._backgroundedTerminalInstances) {
+			if (bg.instance.hasFocus) {
+				return bg.instance;
+			}
+		}
 		// Fallback to the last recorded active terminal if neither have focus
 		return this._activeInstance;
 	}
