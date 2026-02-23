@@ -8,6 +8,7 @@ import type * as http from 'http';
 import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
+import * as os from 'os';
 import { execFile } from 'child_process';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { getMediaMime } from '../../base/common/mime.js';
@@ -141,6 +142,21 @@ export class WebClientServer {
 			}
 			if (pathname === '/api/worktrees') {
 				return this._handleWorktreeApi(req, res);
+			}
+			if (pathname === '/api/browse') {
+				return this._handleBrowseApi(req, res);
+			}
+			if (pathname === '/api/clone') {
+				return this._handleCloneApi(req, res);
+			}
+			if (pathname === '/api/worktree-remove') {
+				return this._handleWorktreeRemoveApi(req, res);
+			}
+			if (pathname === '/api/worktree-add') {
+				return this._handleWorktreeAddApi(req, res);
+			}
+			if (pathname === '/api/branches') {
+				return this._handleBranchesApi(req, res);
 			}
 			if (pathname === CALLBACK_PATH) {
 				// callback support
@@ -551,6 +567,15 @@ export class WebClientServer {
 		return void res.end(data);
 	}
 
+	private _readRequestBody(req: http.IncomingMessage): Promise<string> {
+		return new Promise<string>((resolve, reject) => {
+			let data = '';
+			req.on('data', chunk => { data += chunk; });
+			req.on('end', () => resolve(data));
+			req.on('error', reject);
+		});
+	}
+
 	/**
 	 * Handle POST requests for /api/worktrees
 	 */
@@ -559,12 +584,7 @@ export class WebClientServer {
 			return serveError(req, res, 405, 'Method not allowed');
 		}
 
-		const body = await new Promise<string>((resolve, reject) => {
-			let data = '';
-			req.on('data', chunk => { data += chunk; });
-			req.on('end', () => resolve(data));
-			req.on('error', reject);
-		});
+		const body = await this._readRequestBody(req);
 
 		let repoUris: string[];
 		try {
@@ -641,6 +661,268 @@ export class WebClientServer {
 			'Content-Length': Buffer.byteLength(responseData)
 		});
 		return void res.end(responseData);
+	}
+
+	/**
+	 * Handle POST requests for /api/browse — list directory contents
+	 */
+	private async _handleBrowseApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let browsePath: string;
+		let showHidden = false;
+		try {
+			const parsed = JSON.parse(body);
+			browsePath = parsed.path || os.homedir();
+			showHidden = !!parsed.showHidden;
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			const resolvedPath = resolve(browsePath);
+			const entries = await promises.readdir(resolvedPath, { withFileTypes: true });
+			const dirs = entries
+				.filter(e => e.isDirectory() && (showHidden || !e.name.startsWith('.')))
+				.map(e => ({ name: e.name, isDirectory: true }))
+				.sort((a, b) => a.name.localeCompare(b.name));
+
+			const parent = dirname(resolvedPath) !== resolvedPath ? dirname(resolvedPath) : null;
+
+			const responseData = JSON.stringify({ path: resolvedPath, entries: dirs, parent });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			if (error.code === 'ENOENT') {
+				return serveError(req, res, 404, 'Directory not found');
+			}
+			if (error.code === 'EACCES') {
+				return serveError(req, res, 403, 'Permission denied');
+			}
+			return serveError(req, res, 500, String(error));
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/worktree-remove — remove a git worktree
+	 */
+	private async _handleWorktreeRemoveApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let repoPath: string;
+		let worktreePath: string;
+		try {
+			const parsed = JSON.parse(body);
+			repoPath = parsed.repoPath;
+			worktreePath = parsed.worktreePath;
+			if (!repoPath || !worktreePath) {
+				throw new Error('repoPath and worktreePath are required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			await new Promise<void>((resolveRemove, rejectRemove) => {
+				execFile('git', ['worktree', 'remove', worktreePath], { cwd: repoPath, timeout: 30000 }, (err) => {
+					if (err) {
+						rejectRemove(err);
+					} else {
+						resolveRemove();
+					}
+				});
+			});
+
+			const responseData = JSON.stringify({ success: true });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ success: false, error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/worktree-add — create a new git worktree
+	 */
+	private async _handleWorktreeAddApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let repoPath: string;
+		let branchName: string;
+		let newBranch: boolean;
+		try {
+			const parsed = JSON.parse(body);
+			repoPath = parsed.repoPath;
+			branchName = parsed.branchName;
+			newBranch = !!parsed.newBranch;
+			if (!repoPath || !branchName) {
+				throw new Error('repoPath and branchName are required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		const sanitized = branchName.replace(/\//g, '-');
+		const worktreePath = `${repoPath}-${sanitized}`;
+
+		try {
+			const args = newBranch
+				? ['worktree', 'add', '-b', branchName, worktreePath]
+				: ['worktree', 'add', worktreePath, branchName];
+
+			await new Promise<void>((resolveAdd, rejectAdd) => {
+				execFile('git', args, { cwd: repoPath, timeout: 30000 }, (err) => {
+					if (err) {
+						rejectAdd(err);
+					} else {
+						resolveAdd();
+					}
+				});
+			});
+
+			const responseData = JSON.stringify({ success: true, path: worktreePath });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ success: false, error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/branches — list branches for a repo
+	 */
+	private async _handleBranchesApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let repoPath: string;
+		try {
+			const parsed = JSON.parse(body);
+			repoPath = parsed.repoPath;
+			if (!repoPath) {
+				throw new Error('repoPath is required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			const stdout = await new Promise<string>((resolveExec, rejectExec) => {
+				execFile('git', ['branch', '-a', '--no-color'], { cwd: repoPath }, (err, out) => {
+					if (err) {
+						rejectExec(err);
+					} else {
+						resolveExec(out);
+					}
+				});
+			});
+
+			const branches = stdout
+				.split('\n')
+				.map(line => line.replace(/^[*+]?\s+/, '').trim())
+				.filter(line => line && !line.includes(' -> '))
+				.map(line => line.replace(/^remotes\/origin\//, ''));
+			// Deduplicate
+			const unique = [...new Set(branches)];
+
+			const responseData = JSON.stringify({ branches: unique });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ branches: [], error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/clone — clone a git repository
+	 */
+	private async _handleCloneApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let cloneUrl: string;
+		let destPath: string;
+		try {
+			const parsed = JSON.parse(body);
+			cloneUrl = parsed.url;
+			destPath = parsed.destPath;
+			if (!cloneUrl || !destPath) {
+				throw new Error('url and destPath are required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			await new Promise<void>((resolveClone, rejectClone) => {
+				execFile('git', ['clone', cloneUrl, destPath], { timeout: 120000 }, (err) => {
+					if (err) {
+						rejectClone(err);
+					} else {
+						resolveClone();
+					}
+				});
+			});
+
+			const responseData = JSON.stringify({ success: true, path: destPath });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ success: false, path: destPath, error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
 	}
 
 	private _getScriptCspHashes(content: string): string[] {
