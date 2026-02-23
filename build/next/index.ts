@@ -105,6 +105,7 @@ const codeEntryPoints = [
 	'vs/code/node/cliProcessMain',
 	'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 	'vs/code/electron-browser/workbench/workbench',
+	'vs/code/electron-browser/worktrees/worktrees',
 	'vs/sessions/electron-browser/sessions',
 ];
 
@@ -242,6 +243,9 @@ const desktopResourcePatterns = [
 	// HTML
 	'vs/code/electron-browser/workbench/workbench.html',
 	'vs/code/electron-browser/workbench/workbench-dev.html',
+	'vs/code/electron-browser/worktrees/worktrees.html',
+	'vs/code/electron-browser/worktrees/worktrees-dev.html',
+	'vs/code/browser/workbench/shell.css',
 	'vs/sessions/electron-browser/sessions.html',
 	'vs/sessions/electron-browser/sessions-dev.html',
 	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
