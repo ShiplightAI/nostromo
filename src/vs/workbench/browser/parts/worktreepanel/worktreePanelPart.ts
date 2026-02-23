@@ -21,6 +21,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 type TreeElement = IGitWorktreeRepository | IGitWorktree;
 
@@ -215,8 +216,8 @@ export class WorktreePanelPart extends Part {
 
 	static readonly ID = 'workbench.parts.worktreepanel';
 
-	readonly minimumWidth = 170;
-	readonly maximumWidth = 400;
+	readonly minimumWidth = isWeb ? 0 : 170;
+	readonly maximumWidth = isWeb ? 0 : 400;
 	readonly minimumHeight = 0;
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 

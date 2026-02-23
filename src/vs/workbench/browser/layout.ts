@@ -1328,7 +1328,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.BANNER_PART:
 				return this.initialized ? this.workbenchGrid.isViewVisible(this.bannerPartView) : false;
 			case Parts.WORKTREE_PANEL_PART:
-				return true; // always visible
+				return !this.environmentService.remoteAuthority;
 			default:
 				return false; // any other part cannot be hidden
 		}
@@ -1629,6 +1629,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.mainContainer.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
+
+		// Hide worktree panel in web (remote) mode — the shell page provides worktree switching
+		if (this.environmentService.remoteAuthority) {
+			this.workbenchGrid.setViewVisible(this.worktreePanelPartView, false);
+		}
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart, worktreePanel]) {
 			this._register(part.onDidVisibilityChange(visible => {
@@ -2640,11 +2645,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
 		};
 
+		const showWorktreePanel = !this.environmentService.remoteAuthority;
 		const worktreePanelNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.WORKTREE_PANEL_PART },
-			size: worktreePanelSize,
-			visible: true
+			size: showWorktreePanel ? worktreePanelSize : 0,
+			visible: showWorktreePanel
 		};
 
 		const middleSection: ISerializedNode[] = this.arrangeMiddleSectionNodes({

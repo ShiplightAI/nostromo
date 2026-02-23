@@ -356,6 +356,11 @@ export class Workbench extends Layout {
 		]) {
 			const partContainer = this.createPart(id, role, classes);
 
+			// Hide worktree panel in web mode — the shell page provides worktree switching
+			if (id === Parts.WORKTREE_PANEL_PART && isWeb) {
+				partContainer.style.display = 'none';
+			}
+
 			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);
 			mark(`code/didCreatePart/${id}`);

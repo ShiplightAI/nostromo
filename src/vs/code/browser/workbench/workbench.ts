@@ -605,6 +605,13 @@ function readCookie(name: string): string | undefined {
 		throw new Error('Missing web configuration element');
 	}
 	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = JSON.parse(configElementAttribute);
+
+	// Parse ?embedded=true query param for shell iframe mode
+	const embeddedParam = new URL(mainWindow.location.href).searchParams.get('embedded');
+	if (embeddedParam === 'true') {
+		(config as unknown as Record<string, unknown>).embedded = true;
+	}
+
 	const secretStorageKeyPath = readCookie('vscode-secret-key-path');
 	const secretStorageCrypto = secretStorageKeyPath && ServerKeyedAESCrypto.supported()
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();

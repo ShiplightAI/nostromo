@@ -8,6 +8,7 @@ import type * as http from 'http';
 import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
+import { execFile } from 'child_process';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { getMediaMime } from '../../base/common/mime.js';
 import { isLinux } from '../../base/common/platform.js';
@@ -126,7 +127,20 @@ export class WebClientServer {
 				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
 			}
 			if (pathname === '/') {
+				// Redirect bare / (no ?folder= or ?workspace=) to /shell
+				if (!parsedUrl.query['folder'] && !parsedUrl.query['workspace']) {
+					const basePath = (req.headers['x-forwarded-prefix'] as string) || this._basePath;
+					const shellPath = posix.join(basePath, this._productPath, '/shell');
+					res.writeHead(302, { 'Location': shellPath });
+					return void res.end();
+				}
 				return this._handleRoot(req, res, parsedUrl);
+			}
+			if (pathname === '/shell') {
+				return this._handleShell(req, res);
+			}
+			if (pathname === '/api/worktrees') {
+				return this._handleWorktreeApi(req, res);
 			}
 			if (pathname === CALLBACK_PATH) {
 				// callback support
@@ -453,6 +467,180 @@ export class WebClientServer {
 
 		res.writeHead(200, headers);
 		return void res.end(data);
+	}
+
+	/**
+	 * Handle HTTP requests for /shell
+	 */
+	private async _handleShell(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		const getFirstHeader = (headerName: string) => {
+			const val = req.headers[headerName];
+			return Array.isArray(val) ? val[0] : val;
+		};
+
+		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+
+		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
+		let remoteAuthority = (
+			useTestResolver
+				? 'test+test'
+				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
+		);
+		if (!remoteAuthority) {
+			return serveError(req, res, 400, 'Bad request.');
+		}
+		const forwardedPort = getFirstHeader('x-forwarded-port');
+		if (forwardedPort) {
+			const index = remoteAuthority.indexOf(':');
+			if (index !== -1) {
+				remoteAuthority = remoteAuthority.substring(0, index);
+			}
+			remoteAuthority += `:${forwardedPort}`;
+		}
+
+		const shellConfiguration = {
+			remoteAuthority,
+			serverBasePath: basePath,
+			productPath: this._productPath
+		};
+
+		const staticRoute = posix.join(basePath, this._productPath, STATIC_PATH);
+
+		const filePath = FileAccess.asFileUri(`vs/code/browser/workbench/shell${this._environmentService.isBuilt ? '' : '-dev'}.html`).fsPath;
+
+		const values: { [key: string]: string } = {
+			SHELL_CONFIGURATION: JSON.stringify(shellConfiguration).replace(/"/g, '&quot;'),
+			SHELL_WEB_BASE_URL: staticRoute
+		};
+
+		let data;
+		try {
+			const shellTemplate = (await promises.readFile(filePath)).toString();
+			data = shellTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
+		} catch (e) {
+			res.writeHead(404, { 'Content-Type': 'text/plain' });
+			return void res.end('Not found');
+		}
+
+		const cspDirectives = [
+			'default-src \'self\';',
+			'img-src \'self\' https: data: blob:;',
+			`script-src 'self' 'unsafe-eval' blob: ${this._getScriptCspHashes(data).join(' ')};`,
+			`frame-src 'self' https://*.vscode-cdn.net data:;`,
+			'style-src \'self\' \'unsafe-inline\';',
+			'connect-src \'self\' ws: wss: https:;',
+			'font-src \'self\' blob:;'
+		].join(' ');
+
+		const headers: http.OutgoingHttpHeaders = {
+			'Content-Type': 'text/html',
+			'Content-Security-Policy': cspDirectives
+		};
+		if (this._connectionToken.type !== ServerConnectionTokenType.None) {
+			headers['Set-Cookie'] = cookie.serialize(
+				connectionTokenCookieName,
+				this._connectionToken.value,
+				{
+					sameSite: 'lax',
+					maxAge: 60 * 60 * 24 * 7 /* 1 week */
+				}
+			);
+		}
+
+		res.writeHead(200, headers);
+		return void res.end(data);
+	}
+
+	/**
+	 * Handle POST requests for /api/worktrees
+	 */
+	private async _handleWorktreeApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await new Promise<string>((resolve, reject) => {
+			let data = '';
+			req.on('data', chunk => { data += chunk; });
+			req.on('end', () => resolve(data));
+			req.on('error', reject);
+		});
+
+		let repoUris: string[];
+		try {
+			const parsed = JSON.parse(body);
+			repoUris = parsed.repoUris;
+			if (!Array.isArray(repoUris)) {
+				throw new Error('repoUris must be an array');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		interface IWorktreeInfo {
+			path: string;
+			head: string;
+			branch: string;
+			isBare: boolean;
+		}
+
+		interface IRepoWorktreeResult {
+			repoUri: string;
+			worktrees: IWorktreeInfo[];
+			error?: string;
+		}
+
+		const results: IRepoWorktreeResult[] = [];
+
+		for (const repoUri of repoUris) {
+			const repoPath = URI.parse(repoUri).fsPath;
+			try {
+				const stdout = await new Promise<string>((resolveExec, rejectExec) => {
+					execFile('git', ['worktree', 'list', '--porcelain'], { cwd: repoPath }, (err, stdout) => {
+						if (err) {
+							rejectExec(err);
+						} else {
+							resolveExec(stdout);
+						}
+					});
+				});
+
+				const worktrees: IWorktreeInfo[] = [];
+				const blocks = stdout.split('\n\n').filter(b => b.trim());
+				for (const block of blocks) {
+					const lines = block.split('\n');
+					let wtPath = '';
+					let head = '';
+					let branch = '';
+					let isBare = false;
+					for (const line of lines) {
+						if (line.startsWith('worktree ')) {
+							wtPath = line.substring('worktree '.length);
+						} else if (line.startsWith('HEAD ')) {
+							head = line.substring('HEAD '.length);
+						} else if (line.startsWith('branch ')) {
+							branch = line.substring('branch '.length);
+						} else if (line === 'bare') {
+							isBare = true;
+						}
+					}
+					if (wtPath) {
+						worktrees.push({ path: wtPath, head, branch, isBare });
+					}
+				}
+
+				results.push({ repoUri, worktrees });
+			} catch (err) {
+				results.push({ repoUri, worktrees: [], error: String(err) });
+			}
+		}
+
+		const responseData = JSON.stringify(results);
+		res.writeHead(200, {
+			'Content-Type': 'application/json',
+			'Content-Length': Buffer.byteLength(responseData)
+		});
+		return void res.end(responseData);
 	}
 
 	private _getScriptCspHashes(content: string): string[] {
