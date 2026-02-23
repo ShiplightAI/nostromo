@@ -21,10 +21,25 @@ html, body {
 	min-width: 200px;
 	max-width: 400px;
 	background-color: #252526;
-	border-right: 1px solid #3c3c3c;
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
+}
+
+#resize-handle {
+	width: 4px;
+	cursor: col-resize;
+	background-color: transparent;
+	flex-shrink: 0;
+	position: relative;
+	z-index: 10;
+	border-left: 1px solid #3c3c3c;
+}
+
+#resize-handle:hover,
+#resize-handle.dragging {
+	background-color: #007acc;
+	border-left-color: #007acc;
 }
 
 .sidebar-header {
@@ -195,9 +210,10 @@ html, body {
 }
 
 .add-repo-btn {
-	width: 100%;
+	display: block;
 	box-sizing: border-box;
 	margin: 8px 12px;
+	width: calc(100% - 24px);
 	padding: 6px 12px;
 	background-color: #0e639c;
 	color: #ffffff;

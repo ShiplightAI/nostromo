@@ -106,6 +106,41 @@ class ShellApplication {
 				this.switchToWorktree(event.data.path);
 			}
 		});
+
+		// Resize handle drag
+		const resizeHandle = document.getElementById('resize-handle')!;
+		const sidebar = document.getElementById('shell-sidebar')!;
+		let startX = 0;
+		let startWidth = 0;
+
+		const onMouseMove = (e: MouseEvent) => {
+			const newWidth = startWidth + (e.clientX - startX);
+			const clamped = Math.max(200, Math.min(400, newWidth));
+			sidebar.style.width = `${clamped}px`;
+		};
+
+		const onMouseUp = () => {
+			resizeHandle.classList.remove('dragging');
+			document.body.style.cursor = '';
+			document.body.style.userSelect = '';
+			// Remove iframe pointer-events block
+			this.iframeContainer.style.pointerEvents = '';
+			document.removeEventListener('mousemove', onMouseMove);
+			document.removeEventListener('mouseup', onMouseUp);
+		};
+
+		resizeHandle.addEventListener('mousedown', e => {
+			e.preventDefault();
+			startX = e.clientX;
+			startWidth = sidebar.getBoundingClientRect().width;
+			resizeHandle.classList.add('dragging');
+			document.body.style.cursor = 'col-resize';
+			document.body.style.userSelect = 'none';
+			// Block iframe from stealing mouse events during drag
+			this.iframeContainer.style.pointerEvents = 'none';
+			document.addEventListener('mousemove', onMouseMove);
+			document.addEventListener('mouseup', onMouseUp);
+		});
 	}
 
 	private _buildPath(...segments: string[]): string {
