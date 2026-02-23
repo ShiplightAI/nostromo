@@ -156,4 +156,15 @@ jobs:
           name: "Tachikoma ${{ inputs.version }}"
           draft: true
           files: artifacts/*.dmg
-          generate_release_notes: true
+          body: |
+            ## Installation (macOS)
+
+            1. Download the `.dmg` file below
+            2. Open the DMG and drag **Tachikoma** to Applications
+            3. **Before first launch**, open Terminal and run:
+               ```
+               xattr -cr /Applications/Tachikoma.app
+               ```
+            4. Open Tachikoma from Applications
+
+            > The app is not yet code-signed, so macOS Gatekeeper will block it without step 3.
