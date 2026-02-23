@@ -71,6 +71,11 @@ else {
 			licenseName: 'MIT',
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
+			enableTelemetry: true,
+			posthogConfig: {
+				apiKey: 'phc_EGFurWvmotDyXfmxZqzc2ByeNvA117nwL1vukMiz37s',
+				host: 'https://us.i.posthog.com',
+			},
 			defaultChatAgent: {
 				extensionId: 'GitHub.copilot',
 				chatExtensionId: 'GitHub.copilot-chat',

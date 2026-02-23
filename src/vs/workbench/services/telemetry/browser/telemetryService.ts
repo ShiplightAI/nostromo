@@ -15,6 +15,7 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel, TELEMETRY_SETTING_ID
 import { TelemetryLogAppender } from '../../../../platform/telemetry/common/telemetryLogAppender.js';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from '../../../../platform/telemetry/common/telemetryService.js';
 import { getTelemetryLevel, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { PostHogAppender } from '../../../../platform/telemetry/common/posthogAppender.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
@@ -70,7 +71,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		remoteAgentService: IRemoteAgentService,
 		meteredConnectionService: IMeteredConnectionService
 	) {
-		const telemetrySupported = supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey;
+		const telemetrySupported = supportsTelemetry(productService, environmentService);
 		if (telemetrySupported && getTelemetryLevel(configurationService) !== TelemetryLevel.NONE && this.impl === NullTelemetryService) {
 			// If remote server is present send telemetry through that, else use the client side appender
 			const appenders: ITelemetryAppender[] = [];
@@ -83,8 +84,14 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 					};
 					appenders.push(remoteTelemetryProvider);
 				} else {
-					appenders.push(new OneDataSystemWebAppender(isInternal, 'monacoworkbench', null, productService.aiConfig?.ariaKey));
+					if (productService.aiConfig?.ariaKey) {
+						appenders.push(new OneDataSystemWebAppender(isInternal, 'monacoworkbench', null, productService.aiConfig?.ariaKey));
+					}
 				}
+			}
+			// PostHog appender works even when running from source (isLoggingOnly)
+			if (!remoteAgentService.getConnection() && productService.posthogConfig?.apiKey) {
+				appenders.push(new PostHogAppender(productService.posthogConfig.apiKey, productService.version, 'electron', productService.posthogConfig.host));
 			}
 			appenders.push(new TelemetryLogAppender('', false, loggerService, environmentService, productService));
 			const config: ITelemetryServiceConfig = {
