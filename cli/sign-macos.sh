@@ -7,11 +7,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ARCH="${VSCODE_ARCH:-arm64}"
 KEYCHAIN_PROFILE="notarytool-profile"
+RELEASE_VERSION="$(node -p "require('$REPO_ROOT/product.json').releaseVersion")"
 
 BUILD_DIR="$(dirname "$REPO_ROOT")"
 APP_PATH="$BUILD_DIR/VSCode-darwin-${ARCH}/Tachikoma.app"
 OUT_DIR="$BUILD_DIR/VSCode-darwin-${ARCH}"
-DMG_PATH="$OUT_DIR/Tachikoma.dmg"
+DMG_PATH="$OUT_DIR/Tachikoma-v${RELEASE_VERSION}.dmg"
 
 if [ ! -d "$APP_PATH" ]; then
   echo "Error: Build output not found at $APP_PATH"
