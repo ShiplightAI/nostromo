@@ -24,7 +24,7 @@ mkdir -p "$OUT_DIR"
 # Step 1: Sign app via build/darwin/sign.ts
 echo "=== Signing $APP_PATH ==="
 export VSCODE_ARCH="$ARCH"
-export CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Feng Qian (U5627CA9PY)}"
+export CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Feng QIAN (U5627CA9PY)}"
 npx tsx "$REPO_ROOT/build/darwin/sign.ts" "$BUILD_DIR"
 
 # Step 2: Verify signature
