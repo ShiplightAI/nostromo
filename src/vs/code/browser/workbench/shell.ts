@@ -665,8 +665,7 @@ export class ShellApplication {
 
 			input.addEventListener('keydown', e => {
 				if (e.key === 'Enter') {
-					const value = input.value.trim();
-					dismiss(value || null);
+					dismiss(input.value.trim());
 				} else if (e.key === 'Escape') {
 					dismiss(null);
 				}
@@ -899,21 +898,23 @@ export class ShellApplication {
 
 		const repoPath = repoUri.replace(/^file:\/\//, '');
 
-		const headers = this.repoListEl.querySelectorAll('.repo-header');
+		// Find the repo header that matches this repoUri
+		const sections = this.repoListEl.querySelectorAll('.repo-section');
 		let anchorEl: HTMLElement | null = null;
-		for (const h of headers) {
-			const btn = h.querySelector('.add-wt-btn');
-			if (btn) {
-				const nameEl = h.querySelectorAll('span')[1];
-				if (nameEl) {
-					anchorEl = h as HTMLElement;
+		for (const section of sections) {
+			const header = section.querySelector('.repo-header') as HTMLElement | null;
+			if (header) {
+				const nameEl = header.querySelectorAll('span')[1];
+				const repoName = repoUri.split('/').filter(Boolean).pop() ?? '';
+				if (nameEl && nameEl.textContent === repoName) {
+					anchorEl = header;
 					break;
 				}
 			}
 		}
 
 		const menu = document.createElement('div');
-		menu.className = 'add-repo-menu';
+		menu.className = 'add-repo-menu worktree-menu';
 
 		const items = [
 			{ label: 'New Branch...', action: () => { dismiss(); this._addWorktreeNewBranch(repoPath); } },

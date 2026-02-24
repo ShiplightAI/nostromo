@@ -5,7 +5,7 @@
 
 import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
-import { dirname, join, resolve } from '../../../base/common/path.js';
+import { dirname, join, relative, resolve } from '../../../base/common/path.js';
 import { homedir } from 'os';
 import { BrowserWindow, dialog } from 'electron';
 import { URI } from '../../../base/common/uri.js';
@@ -189,6 +189,14 @@ export class ShellWorktreeService extends Disposable {
 				: ['worktree', 'add', worktreePath, branchName];
 
 			await this._execGit(args, repoPath);
+
+			// Copy .env files from the main worktree (best-effort)
+			try {
+				await this._copyEnvFiles(repoPath, worktreePath);
+			} catch (envErr) {
+				this.logService.warn('[ShellWorktreeService] Failed to copy .env files:', envErr);
+			}
+
 			return { success: true, path: worktreePath };
 		} catch (err) {
 			return { success: false, error: String(err) };
@@ -228,6 +236,42 @@ export class ShellWorktreeService extends Disposable {
 		} catch (err) {
 			return { success: false, error: String(err) };
 		}
+	}
+
+	private static readonly ENV_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out']);
+
+	/**
+	 * Recursively find and copy .env* files from source to dest worktree,
+	 * preserving relative directory structure. Skips files that already exist.
+	 */
+	private async _copyEnvFiles(sourcePath: string, destPath: string): Promise<void> {
+		const walk = async (dir: string): Promise<void> => {
+			let entries: import('fs').Dirent[];
+			try {
+				entries = await fs.readdir(dir, { withFileTypes: true });
+			} catch {
+				return;
+			}
+			for (const entry of entries) {
+				if (entry.isDirectory()) {
+					if (!ShellWorktreeService.ENV_SKIP_DIRS.has(entry.name)) {
+						await walk(join(dir, entry.name));
+					}
+				} else if (entry.isFile() && entry.name.startsWith('.env')) {
+					const relPath = relative(sourcePath, join(dir, entry.name));
+					const destFile = join(destPath, relPath);
+					try {
+						await fs.access(destFile);
+						// File already exists — skip
+					} catch {
+						await fs.mkdir(dirname(destFile), { recursive: true });
+						await fs.copyFile(join(dir, entry.name), destFile);
+						this.logService.info(`[ShellWorktreeService] Copied ${relPath} to new worktree`);
+					}
+				}
+			}
+		};
+		await walk(sourcePath);
 	}
 
 	private _execGit(args: string[], cwd: string | undefined, timeout = 30000): Promise<string> {

@@ -15,7 +15,7 @@ import { getMediaMime } from '../../base/common/mime.js';
 import { isLinux } from '../../base/common/platform.js';
 import { ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
-import { extname, dirname, join, normalize, posix, resolve } from '../../base/common/path.js';
+import { extname, dirname, join, normalize, posix, relative, resolve } from '../../base/common/path.js';
 import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from '../../base/common/network.js';
 import { generateUuid } from '../../base/common/uuid.js';
 import { IProductService } from '../../platform/product/common/productService.js';
@@ -807,6 +807,13 @@ export class WebClientServer {
 				});
 			});
 
+			// Copy .env files from the main worktree (best-effort)
+			try {
+				await this._copyEnvFiles(repoPath, worktreePath);
+			} catch (envErr) {
+				this._logService.warn('[WebClientServer] Failed to copy .env files:', envErr);
+			}
+
 			const responseData = JSON.stringify({ success: true, path: worktreePath });
 			res.writeHead(200, {
 				'Content-Type': 'application/json',
@@ -927,6 +934,42 @@ export class WebClientServer {
 			});
 			return void res.end(responseData);
 		}
+	}
+
+	private static readonly ENV_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out']);
+
+	/**
+	 * Recursively find and copy .env* files from source to dest worktree,
+	 * preserving relative directory structure. Skips files that already exist.
+	 */
+	private async _copyEnvFiles(sourcePath: string, destPath: string): Promise<void> {
+		const walk = async (dir: string): Promise<void> => {
+			let entries: import('fs').Dirent[];
+			try {
+				entries = await promises.readdir(dir, { withFileTypes: true });
+			} catch {
+				return;
+			}
+			for (const entry of entries) {
+				if (entry.isDirectory()) {
+					if (!WebClientServer.ENV_SKIP_DIRS.has(entry.name)) {
+						await walk(join(dir, entry.name));
+					}
+				} else if (entry.isFile() && entry.name.startsWith('.env')) {
+					const relPath = relative(sourcePath, join(dir, entry.name));
+					const destFile = join(destPath, relPath);
+					try {
+						await promises.access(destFile);
+						// File already exists — skip
+					} catch {
+						await promises.mkdir(dirname(destFile), { recursive: true });
+						await promises.copyFile(join(dir, entry.name), destFile);
+						this._logService.info(`[WebClientServer] Copied ${relPath} to new worktree`);
+					}
+				}
+			}
+		};
+		await walk(sourcePath);
 	}
 
 	/**
