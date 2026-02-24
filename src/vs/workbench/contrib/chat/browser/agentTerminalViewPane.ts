@@ -70,7 +70,8 @@ export class AgentTerminalViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this._tabs.length === 0) {
-				this._addTerminalTab('claude', 'Claude');
+				const defaultAgent = this._getTerminalAgentOptions()[0];
+				this._addTerminalTab(defaultAgent.command, defaultAgent.name);
 			}
 		}));
 	}
