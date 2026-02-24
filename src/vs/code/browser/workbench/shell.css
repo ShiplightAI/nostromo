@@ -347,6 +347,13 @@ body:has(#shell-titlebar) {
 	overflow: hidden;
 }
 
+/* Worktree add menu (anchored below repo header) */
+.add-repo-menu.worktree-menu {
+	background-color: #1e1e1e;
+	border: 1px solid #007acc;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+}
+
 .add-repo-menu-item {
 	padding: 8px 12px;
 	cursor: pointer;
