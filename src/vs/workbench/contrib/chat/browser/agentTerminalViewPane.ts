@@ -329,18 +329,28 @@ export class AgentTerminalViewPane extends ViewPane {
 		}
 
 		const tab = this._tabs[idx];
-		if (tab.kind === 'terminal' && tab.terminalInstance) {
-			tab.terminalInstance.dispose();
-		}
+
+		// Remove from DOM, array, and dispose listeners BEFORE disposing the
+		// terminal.  Disposing the terminal fires onDisposed synchronously which
+		// would call _removeTabFromList and splice the wrong element.
 		tab.tabElement.remove();
 		tab.contentContainer.remove();
 		this._tabDisposables.deleteAndDispose(tabId);
 		this._tabs.splice(idx, 1);
 
-		// Activate neighbor
-		if (this._activeTabId === tabId && this._tabs.length > 0) {
-			const newIdx = Math.min(idx, this._tabs.length - 1);
-			this._activateTab(this._tabs[newIdx].id);
+		if (tab.kind === 'terminal' && tab.terminalInstance) {
+			tab.terminalInstance.dispose();
+		}
+
+		// Activate neighbor or recreate default tab
+		if (this._activeTabId === tabId) {
+			if (this._tabs.length > 0) {
+				const newIdx = Math.min(idx, this._tabs.length - 1);
+				this._activateTab(this._tabs[newIdx].id);
+			} else {
+				this._activeTabId = undefined;
+				this._addTerminalTab('claude', 'Claude');
+			}
 		}
 	}
 
@@ -356,9 +366,14 @@ export class AgentTerminalViewPane extends ViewPane {
 		this._tabDisposables.deleteAndDispose(tabId);
 		this._tabs.splice(idx, 1);
 
-		if (this._activeTabId === tabId && this._tabs.length > 0) {
-			const newIdx = Math.min(idx, this._tabs.length - 1);
-			this._activateTab(this._tabs[newIdx].id);
+		if (this._activeTabId === tabId) {
+			if (this._tabs.length > 0) {
+				const newIdx = Math.min(idx, this._tabs.length - 1);
+				this._activateTab(this._tabs[newIdx].id);
+			} else {
+				this._activeTabId = undefined;
+				this._addTerminalTab('claude', 'Claude');
+			}
 		}
 	}
 
