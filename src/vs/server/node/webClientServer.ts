@@ -128,16 +128,17 @@ export class WebClientServer {
 				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
 			}
 			if (pathname === '/') {
-				// Redirect bare / (no ?folder= or ?workspace=) to /shell
+				// Redirect bare / (no ?folder= or ?workspace=) to /worktrees
 				if (!parsedUrl.query['folder'] && !parsedUrl.query['workspace']) {
 					const basePath = (req.headers['x-forwarded-prefix'] as string) || this._basePath;
-					const shellPath = posix.join(basePath, this._productPath, '/shell');
-					res.writeHead(302, { 'Location': shellPath });
+					const shellPath = posix.join(basePath, this._productPath, '/worktrees');
+					const queryString = parsedUrl.search || '';
+					res.writeHead(302, { 'Location': shellPath + queryString });
 					return void res.end();
 				}
 				return this._handleRoot(req, res, parsedUrl);
 			}
-			if (pathname === '/shell') {
+			if (pathname === '/worktrees') {
 				return this._handleShell(req, res);
 			}
 			if (pathname === '/api/worktrees') {
@@ -489,7 +490,7 @@ export class WebClientServer {
 	}
 
 	/**
-	 * Handle HTTP requests for /shell
+	 * Handle HTTP requests for /worktrees
 	 */
 	private async _handleShell(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 		const getFirstHeader = (headerName: string) => {
