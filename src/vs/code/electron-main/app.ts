@@ -278,10 +278,17 @@ export class CodeApplication extends Disposable {
 				return false;
 			}
 
-			// Check to see if the request comes from one of the main editor windows.
-			for (const window of this.windowsMainService.getWindows()) {
-				if (window.win) {
-					if (frame.processId === window.win.webContents.mainFrame.processId) {
+			// Check to see if the request comes from one of the main windows (or child views) and not from embedded content
+			const windows = getAllWindowsExcludingOffscreen();
+			for (const window of windows) {
+				if (frame.processId === window.webContents.mainFrame.processId) {
+					return true;
+				}
+
+				// Also allow requests from child WebContentsViews (e.g. shell worktree views)
+				for (const childView of window.contentView.children) {
+					const webContentsView = childView as Electron.WebContentsView | undefined;
+					if (webContentsView?.webContents?.mainFrame.processId === frame.processId) {
 						return true;
 					}
 				}
