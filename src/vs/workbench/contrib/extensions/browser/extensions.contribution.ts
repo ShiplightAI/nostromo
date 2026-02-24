@@ -293,7 +293,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: '',
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices'],
-				included: false,
+				included: true,
 				policy: {
 					name: 'ExtensionGalleryServiceUrl',
 					category: PolicyCategory.Extensions,
