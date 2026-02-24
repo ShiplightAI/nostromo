@@ -48,6 +48,15 @@ function code() {
 		DISABLE_TEST_EXTENSION=""
 	fi
 
+	# Use dev icon for dev builds
+	if [[ "$OSTYPE" == "darwin"* ]]; then
+		DEV_ICON="$ROOT/resources/darwin/code-dev.icns"
+		APP_ICON="$ROOT/.build/electron/$NAME.app/Contents/Resources/$EXE_NAME.icns"
+		if [ -f "$DEV_ICON" ] && [ -f "$APP_ICON" ]; then
+			cp "$DEV_ICON" "$APP_ICON"
+		fi
+	fi
+
 	# Launch Code
 	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
 }

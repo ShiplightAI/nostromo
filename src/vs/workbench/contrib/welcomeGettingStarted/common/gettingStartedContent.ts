@@ -255,7 +255,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		description: localize('gettingStarted.setup.description', "Customize your editor, learn the basics, and start coding"),
 		isFeatured: true,
 		icon: setupIcon,
-		when: '!isWeb',
+		when: 'false',
 		walkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup VS Code'),
 		next: 'Beginner',
 		content: {
@@ -291,7 +291,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		description: localize('gettingStarted.setupWeb.description', "Run multiple agents in parallel, monitor their work, and review changes"),
 		isFeatured: true,
 		icon: setupIcon,
-		when: 'isWeb',
+		when: '',
 		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Tachikoma'),
 		content: {
 			type: 'steps',
