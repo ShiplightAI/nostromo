@@ -29,22 +29,22 @@ Look for: `Developer ID Application: Feng Qian (U5627CA9PY)`
 
 ## Sign, Notarize, and Package
 
-The script handles everything: signing all binaries (inside-out), notarization, and DMG creation.
+The script works directly from the gulp build output at `../VSCode-darwin-arm64/Tachikoma.app`.
 
 ```bash
-./cli/sign-macos.sh /Applications/Tachikoma.app
+./cli/sign-macos.sh
 ```
 
 What it does:
-1. Signs all native modules (`.node`, `.so`, `.dylib`)
-2. Signs standalone executables (`rg`, `spawn-helper`, `ShipIt`)
-3. Signs Electron helper apps (Renderer, GPU, Plugin)
-4. Signs frameworks
-5. Signs the main app bundle
-6. Notarizes the app with Apple
-7. Creates a `.dmg` and notarizes it
+1. Signs all Mach-O binaries (`.node`, `.dylib`, executables) in one pass
+2. Signs Electron helper apps (Renderer, GPU, Plugin)
+3. Signs frameworks
+4. Signs the main app bundle
+5. Notarizes the app with Apple
+6. Creates a `.dmg` using VS Code's `create-dmg.ts` (with `dmg-background-stable.tiff`)
+7. Notarizes the DMG
 
-Output: `Tachikoma.dmg` in the same directory as the app.
+Output: `../VSCode-darwin-arm64/Tachikoma.dmg`
 
 ### Entitlements
 
@@ -61,3 +61,4 @@ The `entitlements.plist` grants permissions required by Electron/V8:
   xcrun notarytool log <submission-id> --keychain-profile "notarytool-profile"
   ```
 - If the app crashes after signing, check that helper apps in `Contents/Frameworks/*.app` are signed with entitlements (the script handles this).
+- The Keychain "confidential information" prompt on first launch after re-signing is expected — macOS ties stored credentials to the code signature.
