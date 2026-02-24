@@ -40,7 +40,14 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 		if (!extensionsGallery?.serviceUrl) {
 			return null;
 		}
+		return this.buildManifestFromGalleryConfig(extensionsGallery);
+	}
 
+	protected buildManifestFromServiceUrl(serviceUrl: string): IExtensionGalleryManifest {
+		return this.buildManifestFromGalleryConfig({ serviceUrl, itemUrl: '', publisherUrl: '', resourceUrlTemplate: '', extensionUrlTemplate: '', controlUrl: '', nlsBaseUrl: '' });
+	}
+
+	private buildManifestFromGalleryConfig(extensionsGallery: ExtensionGalleryConfig): IExtensionGalleryManifest {
 		const resources = [
 			{
 				id: `${extensionsGallery.serviceUrl}/extensionquery`,
