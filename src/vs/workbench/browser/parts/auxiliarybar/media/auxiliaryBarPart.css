@@ -24,6 +24,7 @@
 
 .monaco-workbench .part.auxiliarybar > .title {
 	background-color: var(--vscode-sideBarTitle-background);
+	display: none !important;
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .title-label {
