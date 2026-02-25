@@ -116,7 +116,7 @@ body:has(#shell-titlebar) {
 }
 
 .repo-header:hover {
-	background-color: #2a2d2e;
+	background-color: var(--shell-hover-bg, #2a2d2e);
 }
 
 .repo-header .expand-icon {
@@ -187,7 +187,7 @@ body:has(#shell-titlebar) {
 }
 
 .worktree-item:hover {
-	background-color: #2a2d2e;
+	background-color: var(--shell-hover-bg, #2a2d2e);
 }
 
 .worktree-item.active {
@@ -363,7 +363,7 @@ body:has(#shell-titlebar) {
 
 .add-repo-menu-item:hover,
 .add-repo-menu-item.focused {
-	background-color: #094771;
+	background-color: var(--shell-active-bg, #094771);
 	color: #ffffff;
 }
 
@@ -464,7 +464,7 @@ body:has(#shell-titlebar) {
 
 .folder-picker-entry:hover,
 .folder-picker-entry.focused {
-	background-color: #094771;
+	background-color: var(--shell-active-bg, #094771);
 	color: #ffffff;
 }
 
@@ -637,6 +637,6 @@ body:has(#shell-titlebar) {
 
 .branch-picker-item:hover,
 .branch-picker-item.focused {
-	background-color: #094771;
+	background-color: var(--shell-active-bg, #094771);
 	color: #ffffff;
 }

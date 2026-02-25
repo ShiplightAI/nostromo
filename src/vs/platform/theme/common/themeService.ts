@@ -235,6 +235,8 @@ export interface IPartsSplash {
 		statusBarBorder: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
 		windowBorder: string | undefined;
+		listHoverBackground: string | undefined;
+		listActiveSelectionBackground: string | undefined;
 	};
 	layoutInfo: {
 		sideBarSide: string;

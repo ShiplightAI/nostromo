@@ -286,6 +286,8 @@ export class ShellApplication {
 			'--shell-sidebar-border': colorInfo.sideBarBorder,
 			'--shell-titlebar-bg': colorInfo.titleBarBackground,
 			'--shell-titlebar-border': colorInfo.titleBarBorder,
+			'--shell-hover-bg': colorInfo.listHoverBackground,
+			'--shell-active-bg': colorInfo.listActiveSelectionBackground,
 		};
 		const root = document.documentElement;
 		for (const [prop, value] of Object.entries(vars)) {

@@ -97,6 +97,8 @@ function createElectronBackend(windowId: number, ipcRenderer: IPreloadGlobals['i
 			'--shell-sidebar-border': c.sideBarBorder,
 			'--shell-titlebar-bg': c.titleBarBackground,
 			'--shell-titlebar-border': c.titleBarBorder,
+			'--shell-hover-bg': c.listHoverBackground,
+			'--shell-active-bg': c.listActiveSelectionBackground,
 		};
 		const root = document.documentElement;
 		for (const [prop, value] of Object.entries(vars)) {
