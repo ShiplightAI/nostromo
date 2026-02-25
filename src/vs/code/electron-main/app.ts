@@ -135,7 +135,7 @@ import { IWebContentExtractorService } from '../../platform/webContentExtractor/
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 import { ShellWorktreeService } from '../../platform/shell/electron-main/shellWorktreeService.js';
-import { ShellViewManager } from '../../platform/shell/electron-main/shellViewManager.js';
+import { IShellViewManager, ShellViewManager } from '../../platform/shell/electron-main/shellViewManager.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1080,6 +1080,9 @@ export class CodeApplication extends Disposable {
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
+		// Shell View Manager
+		services.set(IShellViewManager, new SyncDescriptor(ShellViewManager));
+
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
@@ -1307,7 +1310,7 @@ export class CodeApplication extends Disposable {
 
 		// Shell Worktree Service (browse, git operations for worktree sidebar)
 		disposables.add(this.mainInstantiationService.createInstance(ShellWorktreeService));
-		disposables.add(this.mainInstantiationService.createInstance(ShellViewManager));
+		disposables.add(accessor.get(IShellViewManager) as ShellViewManager);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
