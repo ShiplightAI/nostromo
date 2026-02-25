@@ -56,6 +56,16 @@ interface IShellConfiguration {
 	serverBasePath: string;
 	productPath: string;
 	connectionToken?: string;
+	partsSplash?: {
+		colorInfo?: {
+			background?: string;
+			foreground?: string;
+			sideBarBackground?: string;
+			sideBarBorder?: string;
+			titleBarBackground?: string;
+			titleBarBorder?: string;
+		};
+	};
 }
 
 const MAX_IFRAMES = 5;
@@ -211,6 +221,12 @@ export class ShellApplication {
 			}
 			const config: IShellConfiguration = JSON.parse(configAttr);
 			this.backend = createWebBackend(config, this.iframeContainer, this.iframes, this.iframeLRU);
+
+			// Apply theme colors: try config first, then localStorage splash data
+			const colorInfo = config.partsSplash?.colorInfo ?? this._readSplashFromStorage();
+			if (colorInfo) {
+				ShellApplication._applyThemeColors(colorInfo);
+			}
 		}
 
 		this._setupEventListeners();
@@ -246,6 +262,36 @@ export class ShellApplication {
 			}
 		} catch (err) {
 			console.error('Failed to load shell settings:', err);
+		}
+	}
+
+	private _readSplashFromStorage(): Record<string, string | undefined> | undefined {
+		try {
+			const raw = localStorage.getItem('monaco-parts-splash');
+			if (raw) {
+				const splash = JSON.parse(raw);
+				return splash?.colorInfo;
+			}
+		} catch {
+			// ignore parse errors
+		}
+		return undefined;
+	}
+
+	static _applyThemeColors(colorInfo: Record<string, string | undefined>): void {
+		const vars: Record<string, string | undefined> = {
+			'--shell-background': colorInfo.background,
+			'--shell-foreground': colorInfo.foreground,
+			'--shell-sidebar-bg': colorInfo.sideBarBackground,
+			'--shell-sidebar-border': colorInfo.sideBarBorder,
+			'--shell-titlebar-bg': colorInfo.titleBarBackground,
+			'--shell-titlebar-border': colorInfo.titleBarBorder,
+		};
+		const root = document.documentElement;
+		for (const [prop, value] of Object.entries(vars)) {
+			if (value) {
+				root.style.setProperty(prop, value);
+			}
 		}
 	}
 
