@@ -742,6 +742,24 @@ export class ShellApplication {
 	}
 
 	private _removeRepository(repoUri: string): void {
+		// Clean up iframes/views for all worktrees belonging to this repo
+		const worktrees = this.repoWorktrees.get(repoUri) ?? [];
+		let activeRemoved = false;
+		for (const wt of worktrees) {
+			this.backend.onWorktreeRemoved(wt.path);
+			if (this.activeWorktreePath === wt.path) {
+				activeRemoved = true;
+			}
+		}
+
+		if (activeRemoved) {
+			this.activeWorktreePath = null;
+			const newUrl = new URL(window.location.href);
+			newUrl.searchParams.delete('folder');
+			history.replaceState(null, '', newUrl.toString());
+			this._showEmptyState();
+		}
+
 		this.trackedRepos = this.trackedRepos.filter(r => r !== repoUri);
 		this._saveSettings();
 		this.repoWorktrees.delete(repoUri);
