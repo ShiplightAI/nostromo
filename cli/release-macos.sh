@@ -1,6 +1,5 @@
 #!/bin/bash
-# Sign, notarize, and package Tachikoma.app for macOS distribution
-# Uses the build output directly from the gulp package task
+# Build, sign, notarize, and package Tachikoma.app for macOS distribution
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -14,26 +13,25 @@ APP_PATH="$BUILD_DIR/VSCode-darwin-${ARCH}/Tachikoma.app"
 OUT_DIR="$BUILD_DIR/VSCode-darwin-${ARCH}"
 DMG_PATH="$OUT_DIR/Tachikoma-v${RELEASE_VERSION}.dmg"
 
-if [ ! -d "$APP_PATH" ]; then
-  echo "Error: Build output not found at $APP_PATH"
-  echo "Run 'gulp vscode-darwin-${ARCH}-min' first to build the app."
-  exit 1
-fi
+# Step 1: Build the app bundle
+echo "=== Building Tachikoma v${RELEASE_VERSION} (darwin-${ARCH}) ==="
+cd "$REPO_ROOT"
+npx gulp "vscode-darwin-${ARCH}-min"
 
 mkdir -p "$OUT_DIR"
 
-# Step 1: Sign app via build/darwin/sign.ts
+# Step 2: Sign app via build/darwin/sign.ts
 echo "=== Signing $APP_PATH ==="
 export VSCODE_ARCH="$ARCH"
 export CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Feng QIAN (U5627CA9PY)}"
 npx tsx "$REPO_ROOT/build/darwin/sign.ts" "$BUILD_DIR"
 
-# Step 2: Verify signature
+# Step 3: Verify signature
 echo "=== Verifying signature ==="
 codesign --verify --deep --strict "$APP_PATH"
 echo "Signature OK"
 
-# Step 3: Notarize the app (via zip)
+# Step 4: Notarize the app (via zip)
 echo "=== Creating zip for notarization ==="
 ZIP_PATH="$(mktemp -d)/Tachikoma.zip"
 ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
@@ -45,7 +43,7 @@ echo "=== Stapling app ==="
 xcrun stapler staple "$APP_PATH"
 rm -f "$ZIP_PATH"
 
-# Step 4: Create DMG using VS Code's create-dmg.ts
+# Step 5: Create DMG using VS Code's create-dmg.ts
 echo "=== Creating DMG ==="
 rm -f "$DMG_PATH"
 export VSCODE_QUALITY="${VSCODE_QUALITY:-stable}"
@@ -63,7 +61,7 @@ if [ -f "$VOLUME_ICON" ] && command -v fileicon &>/dev/null; then
   fileicon set "$DMG_PATH" "$VOLUME_ICON"
 fi
 
-# Step 5: Notarize and staple the DMG
+# Step 6: Notarize and staple the DMG
 echo "=== Notarizing DMG ==="
 xcrun notarytool submit "$DMG_PATH" --keychain-profile "$KEYCHAIN_PROFILE" --wait
 xcrun stapler staple "$DMG_PATH"
