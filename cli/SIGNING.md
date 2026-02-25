@@ -27,24 +27,20 @@ security find-identity -v -p codesigning
 
 Look for: `Developer ID Application: Feng Qian (U5627CA9PY)`
 
-## Sign, Notarize, and Package
-
-The script works directly from the gulp build output at `../VSCode-darwin-arm64/Tachikoma.app`.
+## Build, Sign, Notarize, and Package
 
 ```bash
-./cli/sign-macos.sh
+./cli/release-macos.sh
 ```
 
 What it does:
-1. Signs all Mach-O binaries (`.node`, `.dylib`, executables) in one pass
-2. Signs Electron helper apps (Renderer, GPU, Plugin)
-3. Signs frameworks
-4. Signs the main app bundle
-5. Notarizes the app with Apple
-6. Creates a `.dmg` using VS Code's `create-dmg.ts` (with `dmg-background-stable.tiff`)
-7. Notarizes the DMG
+1. Builds the app bundle via `gulp vscode-darwin-arm64-min`
+2. Signs all binaries, helpers, frameworks, and the main app bundle
+3. Notarizes the app with Apple
+4. Creates a `.dmg` using VS Code's `create-dmg.ts` (with `dmg-background-stable.tiff`)
+5. Notarizes the DMG
 
-Output: `../VSCode-darwin-arm64/Tachikoma.dmg`
+Output: `../VSCode-darwin-arm64/Tachikoma-v{version}.dmg`
 
 ### Entitlements
 
