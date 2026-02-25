@@ -86,6 +86,26 @@ function createElectronBackend(windowId: number, ipcRenderer: IPreloadGlobals['i
 	const configuration = await preloadGlobals.context.resolveConfiguration();
 	const ipcRenderer = preloadGlobals.ipcRenderer;
 
+	// Apply theme colors from the workbench configuration
+	const partsSplash = configuration.partsSplash as { colorInfo?: Record<string, string | undefined> } | undefined;
+	if (partsSplash?.colorInfo) {
+		const c = partsSplash.colorInfo;
+		const vars: Record<string, string | undefined> = {
+			'--shell-background': c.background,
+			'--shell-foreground': c.foreground,
+			'--shell-sidebar-bg': c.sideBarBackground,
+			'--shell-sidebar-border': c.sideBarBorder,
+			'--shell-titlebar-bg': c.titleBarBackground,
+			'--shell-titlebar-border': c.titleBarBorder,
+		};
+		const root = document.documentElement;
+		for (const [prop, value] of Object.entries(vars)) {
+			if (value) {
+				root.style.setProperty(prop, value);
+			}
+		}
+	}
+
 	// Get the window ID for view management IPC
 	const windowId = (configuration.windowId as number) ?? -1;
 

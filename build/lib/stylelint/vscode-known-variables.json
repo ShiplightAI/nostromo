@@ -1016,6 +1016,12 @@
 		"--chat-subagent-last-item-height",
 		"--vscode-inline-chat-affordance-height",
 		"--collapse-from-width",
+		"--shell-background",
+		"--shell-foreground",
+		"--shell-sidebar-bg",
+		"--shell-sidebar-border",
+		"--shell-titlebar-bg",
+		"--shell-titlebar-border",
 		"--slide-from-x",
 		"--slide-from-y"
 	],
