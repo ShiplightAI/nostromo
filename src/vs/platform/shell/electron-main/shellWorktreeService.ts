@@ -214,16 +214,14 @@ export class ShellWorktreeService extends Disposable {
 
 	async listBranches(repoPath: string): Promise<{ branches: string[] }> {
 		try {
-			const stdout = await this._execGit(['branch', '-a', '--no-color'], repoPath);
+			const stdout = await this._execGit(['branch', '--no-color'], repoPath);
 
 			const branches = stdout
 				.split('\n')
 				.map(line => line.replace(/^[*+]?\s+/, '').trim())
-				.filter(line => line && !line.includes(' -> '))
-				.map(line => line.replace(/^remotes\/origin\//, ''));
-			const unique = [...new Set(branches)];
+				.filter(line => line.length > 0);
 
-			return { branches: unique };
+			return { branches };
 		} catch (err) {
 			return { branches: [] };
 		}
