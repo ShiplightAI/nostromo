@@ -3,17 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, WebContentsView } from 'electron';
+import { BrowserWindow, WebContents, WebContentsView } from 'electron';
 import { createHash } from 'crypto';
 import { FileAccess } from '../../../base/common/network.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 import { INativeWindowConfiguration } from '../../window/common/window.js';
 import { URI } from '../../../base/common/uri.js';
+
+export const IShellViewManager = createDecorator<IShellViewManager>('shellViewManager');
+
+export interface IShellViewManager {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Returns the active child view's WebContents for a given window ID,
+	 * or undefined if there is no active view.
+	 */
+	getActiveViewWebContents(windowId: number): WebContents | undefined;
+}
 
 interface IManagedView {
 	view: WebContentsView;
@@ -26,7 +39,9 @@ interface IManagedView {
  * Each view hosts a full VS Code workbench for a specific worktree folder.
  * Hidden views keep their processes alive so agents continue running.
  */
-export class ShellViewManager extends Disposable {
+export class ShellViewManager extends Disposable implements IShellViewManager {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly views = new Map<string, IManagedView>(); // key: `${windowId}:${folderPath}`
 	private readonly activeViews = new Map<number, string>(); // windowId -> active folderPath
@@ -65,6 +80,16 @@ export class ShellViewManager extends Disposable {
 		validatedIpcMain.handle('vscode:shellView-setActiveViewVisible', async (_event, windowId: number, visible: boolean) => {
 			this.setActiveViewVisible(windowId, visible);
 		});
+	}
+
+	getActiveViewWebContents(windowId: number): WebContents | undefined {
+		const activePath = this.activeViews.get(windowId);
+		if (!activePath) {
+			return undefined;
+		}
+		const viewKey = `${windowId}:${activePath}`;
+		const managed = this.views.get(viewKey);
+		return managed?.view.webContents;
 	}
 
 	async activateWorktree(windowId: number, folderPath: string): Promise<void> {
