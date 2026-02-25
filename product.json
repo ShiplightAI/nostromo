@@ -92,6 +92,7 @@
 		"controlUrl": "https://az764295.vo.msecnd.net/extensions/marketplace.json",
 		"nlsBaseUrl": "https://www.vscode-unpkg.net/_lp/{language}/vscode/{version}"
 	},
+	"discordUrl": "https://discord.com/invite/mAf2XET8ej",
 	"enableTelemetry": true,
 	"posthogConfig": {
 		"apiKey": "phc_EGFurWvmotDyXfmxZqzc2ByeNvA117nwL1vukMiz37s",

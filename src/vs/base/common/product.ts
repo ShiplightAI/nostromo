@@ -172,6 +172,7 @@ export interface IProductConfiguration {
 	readonly tipsAndTricksUrl?: string;
 	readonly newsletterSignupUrl?: string;
 	readonly youTubeUrl?: string;
+	readonly discordUrl?: string;
 	readonly requestFeatureUrl?: string;
 	readonly reportIssueUrl?: string;
 	readonly reportMarketplaceIssueUrl?: string;

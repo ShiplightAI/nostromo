@@ -71,6 +71,7 @@ else {
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			enableTelemetry: true,
+			discordUrl: 'https://discord.com/invite/mAf2XET8ej',
 			posthogConfig: {
 				apiKey: 'phc_EGFurWvmotDyXfmxZqzc2ByeNvA117nwL1vukMiz37s',
 				host: 'https://us.i.posthog.com',
