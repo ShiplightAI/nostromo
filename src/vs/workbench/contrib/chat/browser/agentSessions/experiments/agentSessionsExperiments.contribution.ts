@@ -251,6 +251,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
+		ChatContextKeys.Setup.hidden.negate(),
 		ContextKeyExpr.or(
 			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
 			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)

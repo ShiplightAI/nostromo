@@ -23,6 +23,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 type AgentTabKind = 'terminal' | 'copilot';
 
@@ -65,6 +66,7 @@ export class AgentTerminalViewPane extends ViewPane {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -123,15 +125,6 @@ export class AgentTerminalViewPane extends ViewPane {
 	}
 
 	private _showAddTabMenu(anchor: HTMLElement): void {
-		const copilotAction: IAction = {
-			id: 'addAgent.copilot',
-			label: 'GitHub Copilot',
-			tooltip: '',
-			class: undefined,
-			enabled: !this._tabs.some(t => t.kind === 'copilot'),
-			run: () => this._addCopilotTab(),
-		};
-
 		const terminalAgents = this._getTerminalAgentOptions();
 		const terminalActions: IAction[] = terminalAgents.map(agent => ({
 			id: `addAgent.${agent.provider}`,
@@ -142,9 +135,22 @@ export class AgentTerminalViewPane extends ViewPane {
 			run: () => this._addTerminalTab(agent.command, agent.name),
 		}));
 
+		const actions: IAction[] = [...terminalActions];
+
+		if (this._productService.defaultChatAgent) {
+			actions.push({
+				id: 'addAgent.copilot',
+				label: 'GitHub Copilot',
+				tooltip: '',
+				class: undefined,
+				enabled: !this._tabs.some(t => t.kind === 'copilot'),
+				run: () => this._addCopilotTab(),
+			});
+		}
+
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => [...terminalActions, copilotAction],
+			getActions: () => actions,
 		});
 	}
 
