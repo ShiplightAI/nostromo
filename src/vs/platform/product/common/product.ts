@@ -67,7 +67,6 @@ else {
 			applicationName: 'code-oss',
 			dataFolderName: '.vscode-oss',
 			urlProtocol: 'code-oss',
-			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
@@ -76,21 +75,6 @@ else {
 				apiKey: 'phc_EGFurWvmotDyXfmxZqzc2ByeNvA117nwL1vukMiz37s',
 				host: 'https://us.i.posthog.com',
 			},
-			defaultChatAgent: {
-				extensionId: 'GitHub.copilot',
-				chatExtensionId: 'GitHub.copilot-chat',
-				provider: {
-					default: {
-						id: 'github',
-						name: 'GitHub',
-					},
-					enterprise: {
-						id: 'github-enterprise',
-						name: 'GitHub Enterprise',
-					}
-				},
-				providerScopes: []
-			}
 		});
 	}
 }

@@ -199,12 +199,20 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		return this.dedupExtensions(system, user, [], await this.getTargetPlatform(), true);
 	}
 
+	private static readonly DISABLED_SYSTEM_EXTENSIONS: ReadonlySet<string> = new Set([
+		'vscode.github-authentication',
+		'vscode.microsoft-authentication',
+	]);
+
 	async scanSystemExtensions(scanOptions: SystemExtensionsScanOptions): Promise<IScannedExtension[]> {
 		const promises: Promise<IRelaxedScannedExtension[]>[] = [];
 		promises.push(this.scanDefaultSystemExtensions(scanOptions.language));
 		promises.push(this.scanDevSystemExtensions(scanOptions.language, !!scanOptions.checkControlFile));
 		const [defaultSystemExtensions, devSystemExtensions] = await Promise.all(promises);
-		return this.applyScanOptions([...defaultSystemExtensions, ...devSystemExtensions], ExtensionType.System, { pickLatest: false });
+		const allExtensions = [...defaultSystemExtensions, ...devSystemExtensions].filter(
+			ext => !AbstractExtensionsScannerService.DISABLED_SYSTEM_EXTENSIONS.has(ext.identifier.id)
+		);
+		return this.applyScanOptions(allExtensions, ExtensionType.System, { pickLatest: false });
 	}
 
 	async scanUserExtensions(scanOptions: UserExtensionsScanOptions): Promise<IScannedExtension[]> {
