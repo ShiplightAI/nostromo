@@ -423,6 +423,9 @@ import './contrib/accessibility/browser/accessibility.contribution.js';
 // Metered Connection
 import './contrib/meteredConnection/browser/meteredConnection.contribution.js';
 
+// Discord
+import './contrib/discord/browser/discord.contribution.js';
+
 // Share
 import './contrib/share/browser/share.contribution.js';
 
