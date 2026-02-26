@@ -32,7 +32,8 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 	private _bracketedPasteMode = false;
 	private _silenceTimer: ReturnType<typeof setTimeout> | undefined;
 	private _notificationActive = false;
-	private _acknowledged = true; // start acknowledged — first prompt is not "waiting for input"
+	private _acknowledged = false;
+	private _hasUserInput = false; // no notifications until user has typed at least once
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -77,6 +78,7 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 
 		// User input resets everything — they're actively interacting
 		this._register(xterm.raw.onData(() => {
+			this._hasUserInput = true;
 			this._acknowledged = false;
 			this._clearSilenceTimer();
 			this._clearNotification();
@@ -171,7 +173,7 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 
 	private _resetSilenceTimer(): void {
 		this._clearSilenceTimer();
-		if (!this._isEnabled() || this._acknowledged) {
+		if (!this._isEnabled() || this._acknowledged || !this._hasUserInput) {
 			return;
 		}
 		const silenceMs = this._configurationService.getValue<number>(TerminalInputNotificationSettingId.InputNotificationSilenceMs) ?? 5000;
@@ -192,7 +194,7 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 			'enabled:', this._isEnabled(), 'hasFocus:', mainWindow.document.hasFocus(),
 			'acknowledged:', this._acknowledged, 'active:', this._notificationActive);
 
-		if (!this._bracketedPasteMode || !this._isEnabled()) {
+		if (!this._bracketedPasteMode || !this._isEnabled() || !this._hasUserInput) {
 			return;
 		}
 
