@@ -5,7 +5,7 @@
 
 /* eslint-disable no-restricted-syntax, no-restricted-globals */
 
-import { IShellBackend, IShellSettings, IBrowseResult, IRepoWorktreeResult, ShellApplication } from '../../browser/workbench/shell.js';
+import { IShellBackend, IShellSettings, IBrowseResult, IRepoWorktreeResult, IShellNotification, ShellApplication } from '../../browser/workbench/shell.js';
 
 /**
  * Electron shell window entry point.
@@ -22,6 +22,7 @@ interface IPreloadGlobals {
 	};
 	ipcRenderer: {
 		invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+		on(channel: string, listener: (event: unknown, ...args: unknown[]) => void): void;
 	};
 }
 
@@ -77,6 +78,12 @@ function createElectronBackend(windowId: number, ipcRenderer: IPreloadGlobals['i
 
 		setActiveViewVisible(visible: boolean): void {
 			ipcRenderer.invoke('vscode:shellView-setActiveViewVisible', windowId, visible);
+		},
+
+		onNotification(handler: (notification: IShellNotification) => void): void {
+			ipcRenderer.on('vscode:shellNotification', (_event: unknown, notification: unknown) => {
+				handler(notification as IShellNotification);
+			});
 		}
 	};
 }

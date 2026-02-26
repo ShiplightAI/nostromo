@@ -80,6 +80,21 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		validatedIpcMain.handle('vscode:shellView-setActiveViewVisible', async (_event, windowId: number, visible: boolean) => {
 			this.setActiveViewVisible(windowId, visible);
 		});
+
+		validatedIpcMain.handle('vscode:shellView-notifyShell', async (_event, notification: unknown) => {
+			// Forward notification from a workbench WebContentsView to its parent shell window
+			const senderWebContents = _event.sender;
+			for (const [key, managed] of this.views) {
+				if (managed.view.webContents === senderWebContents) {
+					const windowId = parseInt(key.split(':')[0], 10);
+					const parentWindow = this._getWindow(windowId);
+					if (parentWindow) {
+						parentWindow.webContents.send('vscode:shellNotification', notification);
+					}
+					break;
+				}
+			}
+		});
 	}
 
 	getActiveViewWebContents(windowId: number): WebContents | undefined {
@@ -216,10 +231,12 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 			configObjectUrl.update(viewConfig);
 		}
 
-		// Load the workbench HTML (same URL as normal windows)
+		// Load the workbench HTML with ?embedded=true so services like
+		// ShellNotificationService know this is an embedded shell view.
 		const workbenchUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
-		this.logService.info(`[ShellViewManager] Loading workbench URL: ${workbenchUrl}`);
-		view.webContents.loadURL(workbenchUrl);
+		const embeddedUrl = workbenchUrl + (workbenchUrl.includes('?') ? '&' : '?') + 'embedded=true';
+		this.logService.info(`[ShellViewManager] Loading workbench URL: ${embeddedUrl}`);
+		view.webContents.loadURL(embeddedUrl);
 
 		// Add to parent window
 		parentWindow.contentView.addChildView(view);
@@ -255,6 +272,7 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		validatedIpcMain.removeHandler('vscode:shellView-layoutActiveView');
 		validatedIpcMain.removeHandler('vscode:shellView-removeView');
 		validatedIpcMain.removeHandler('vscode:shellView-setActiveViewVisible');
+		validatedIpcMain.removeHandler('vscode:shellView-notifyShell');
 		super.dispose();
 	}
 }

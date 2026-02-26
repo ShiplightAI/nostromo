@@ -25,6 +25,7 @@ import '../terminalContrib/history/browser/terminal.history.contribution.js';
 import '../terminalContrib/inlineHint/browser/terminal.initialHint.contribution.js';
 import '../terminalContrib/links/browser/terminal.links.contribution.js';
 import '../terminalContrib/notification/browser/terminal.notification.contribution.js';
+import '../terminalContrib/notification/browser/terminal.inputNotification.contribution.js';
 import '../terminalContrib/zoom/browser/terminal.zoom.contribution.js';
 import '../terminalContrib/stickyScroll/browser/terminal.stickyScroll.contribution.js';
 import '../terminalContrib/quickAccess/browser/terminal.quickAccess.contribution.js';
