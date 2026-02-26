@@ -24,6 +24,15 @@ export interface IBrowseResult {
 	parent: string | null;
 }
 
+export interface IShellNotification {
+	type: string;
+	source: string;
+	worktreePath: string;
+	active: boolean;
+	severity?: 'info' | 'warning';
+	message?: string;
+}
+
 /**
  * Backend abstraction for the shell sidebar.
  * Web mode uses fetch() to server APIs + iframe creation.
@@ -49,6 +58,8 @@ export interface IShellBackend {
 	showOpenDialog?(): Promise<string | null>;
 	/** Hide/show the active WebContentsView so HTML overlays are visible (electron only). */
 	setActiveViewVisible?(visible: boolean): void;
+	/** Register a handler for notifications from workbench instances. */
+	onNotification?(handler: (notification: IShellNotification) => void): void;
 }
 
 interface IShellConfiguration {
@@ -133,9 +144,10 @@ function createWebBackend(config: IShellConfiguration, iframeContainer: HTMLElem
 		},
 
 		switchToWorktree(worktreePath: string): void {
-			// Hide all iframes
+			// Hide all iframes and notify them they are inactive
 			for (const iframe of iframes.values()) {
 				iframe.classList.add('hidden');
+				iframe.contentWindow?.postMessage({ type: 'shell.activeView', active: false }, '*');
 			}
 
 			// Show or create the iframe
@@ -171,6 +183,9 @@ function createWebBackend(config: IShellConfiguration, iframeContainer: HTMLElem
 				iframeLRU.push(worktreePath);
 			}
 
+			// Notify the now-visible iframe that it's active
+			iframe.contentWindow?.postMessage({ type: 'shell.activeView', active: true }, '*');
+
 			// Update browser URL
 			const folderUri = `vscode-remote://${config.remoteAuthority}${worktreePath}`;
 			const newUrl = new URL(window.location.href);
@@ -203,6 +218,8 @@ export class ShellApplication {
 	private trackedRepos: string[] = [];
 	private repoWorktrees = new Map<string, IWorktreeInfo[]>();
 	private _activePopupDismiss: (() => void) | null = null;
+	/** Active notifications keyed by `worktreePath:source` */
+	private readonly _notifications = new Map<string, IShellNotification>();
 
 	private lastBrowsePath = '';
 
@@ -231,6 +248,9 @@ export class ShellApplication {
 
 		this._setupEventListeners();
 		this._showEmptyState();
+
+		// Register notification handler
+		this.backend.onNotification?.(notification => this._handleNotification(notification));
 
 		// Check if URL has ?folder= param — auto-activate that worktree
 		const urlParams = new URLSearchParams(window.location.search);
@@ -309,6 +329,8 @@ export class ShellApplication {
 		window.addEventListener('message', event => {
 			if (event.data?.type === 'shell.switchWorktree') {
 				this.switchToWorktree(event.data.path);
+			} else if (event.data?.type === 'shell.notification') {
+				this._handleNotification(event.data.notification);
 			}
 		});
 
@@ -842,18 +864,6 @@ export class ShellApplication {
 	private _renderRepoList(): void {
 		this.repoListEl.innerHTML = '';
 
-		const hasActiveSession = this.activeWorktreePath !== null;
-		let activeRepoUri: string | null = null;
-		if (hasActiveSession) {
-			for (const repoUri of this.trackedRepos) {
-				const worktrees = this.repoWorktrees.get(repoUri) ?? [];
-				if (worktrees.some(wt => wt.path === this.activeWorktreePath)) {
-					activeRepoUri = repoUri;
-					break;
-				}
-			}
-		}
-
 		for (const repoUri of this.trackedRepos) {
 			const worktrees = this.repoWorktrees.get(repoUri) ?? [];
 			const section = document.createElement('div');
@@ -900,12 +910,6 @@ export class ShellApplication {
 			const wtList = document.createElement('div');
 			wtList.className = 'worktree-list';
 
-			const shouldCollapse = hasActiveSession && repoUri !== activeRepoUri;
-			if (shouldCollapse) {
-				wtList.classList.add('collapsed');
-				expandIcon.classList.add('collapsed');
-			}
-
 			header.addEventListener('click', () => {
 				const collapsed = wtList.classList.toggle('collapsed');
 				expandIcon.classList.toggle('collapsed', collapsed);
@@ -926,6 +930,18 @@ export class ShellApplication {
 				branchSpan.textContent = branchName;
 				branchSpan.title = wt.path;
 				item.appendChild(branchSpan);
+
+				// Show notification badge if this worktree has active notifications
+				const notifications = this._getNotificationsForWorktree(wt.path);
+				if (notifications.length > 0) {
+					const badge = document.createElement('span');
+					const hasWarning = notifications.some(n => n.severity === 'warning');
+					badge.className = 'wt-notification-badge' + (hasWarning ? ' warning' : '');
+					// allow-any-unicode-next-line
+					badge.textContent = '\uD83D\uDD14';
+					badge.title = notifications.map(n => n.message || n.type).join(', ');
+					item.appendChild(badge);
+				}
 
 				if (wt.isBare) {
 					const bareTag = document.createElement('span');
@@ -1235,10 +1251,80 @@ export class ShellApplication {
 		}
 	}
 
+	private _handleNotification(notification: IShellNotification): void {
+		const key = `${notification.worktreePath}:${notification.source}`;
+		if (notification.active) {
+			this._notifications.set(key, notification);
+		} else {
+			if (notification.type) {
+				// Clear specific type from source
+				const existing = this._notifications.get(key);
+				if (existing && existing.type === notification.type) {
+					this._notifications.delete(key);
+				}
+			} else {
+				// Clear all from source
+				this._notifications.delete(key);
+			}
+		}
+		// Update badges in-place without re-rendering the whole list,
+		// so that the user's expand/collapse state is preserved.
+		this._updateBadges(notification.worktreePath);
+	}
+
+	private _updateBadges(worktreePath: string): void {
+		const items = this.repoListEl.querySelectorAll('.worktree-item');
+		for (const item of items) {
+			const branchEl = item.querySelector('.wt-branch');
+			if (!branchEl || branchEl.getAttribute('title') !== worktreePath) {
+				continue;
+			}
+			// Remove existing badge
+			const existing = item.querySelector('.wt-notification-badge');
+			if (existing) {
+				existing.remove();
+			}
+			// Add badge if there are active notifications
+			const notifications = this._getNotificationsForWorktree(worktreePath);
+			if (notifications.length > 0) {
+				const badge = document.createElement('span');
+				const hasWarning = notifications.some(n => n.severity === 'warning');
+				badge.className = 'wt-notification-badge' + (hasWarning ? ' warning' : '');
+				// allow-any-unicode-next-line
+				badge.textContent = '\uD83D\uDD14';
+				badge.title = notifications.map(n => n.message || n.type).join(', ');
+				// Insert badge after the branch span, before any other buttons
+				branchEl.after(badge);
+			}
+			break;
+		}
+	}
+
+	private _getNotificationsForWorktree(worktreePath: string): IShellNotification[] {
+		const result: IShellNotification[] = [];
+		for (const [key, notification] of this._notifications) {
+			if (key.startsWith(worktreePath + ':')) {
+				result.push(notification);
+			}
+		}
+		return result;
+	}
+
+	private _clearNotificationsForWorktree(worktreePath: string): void {
+		for (const key of [...this._notifications.keys()]) {
+			if (key.startsWith(worktreePath + ':')) {
+				this._notifications.delete(key);
+			}
+		}
+	}
+
 	switchToWorktree(worktreePath: string): void {
 		if (this.activeWorktreePath === worktreePath) {
 			return;
 		}
+
+		// Clear notifications for the worktree being switched to
+		this._clearNotificationsForWorktree(worktreePath);
 
 		this.activeWorktreePath = worktreePath;
 		this._removeEmptyState();
