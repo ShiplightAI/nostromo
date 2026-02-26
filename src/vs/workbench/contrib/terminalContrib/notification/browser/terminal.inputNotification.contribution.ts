@@ -32,7 +32,7 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 	private _bracketedPasteMode = false;
 	private _silenceTimer: ReturnType<typeof setTimeout> | undefined;
 	private _notificationActive = false;
-	private _acknowledged = false;
+	private _acknowledged = true; // start acknowledged — first prompt is not "waiting for input"
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -119,10 +119,23 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 		};
 		mainWindow.addEventListener('message', onMessage);
 
+		// Electron shell: main process sends IPC when switching WebContentsViews
+		const vscodeGlobal = (mainWindow as unknown as { vscode?: { ipcRenderer?: { on(channel: string, listener: (...args: unknown[]) => void): void; removeListener(channel: string, listener: (...args: unknown[]) => void): void } } }).vscode;
+		const onIpcActiveView = (_event: unknown, active: unknown) => {
+			console.log('[InputNotification] IPC shellActiveView, active:', active);
+			if (active) {
+				onActivated();
+			} else {
+				onDeactivated();
+			}
+		};
+		vscodeGlobal?.ipcRenderer?.on('vscode:shellActiveView', onIpcActiveView);
+
 		this._register({
 			dispose: () => {
 				mainWindow.removeEventListener('focus', onActivated);
 				mainWindow.removeEventListener('message', onMessage);
+				vscodeGlobal?.ipcRenderer?.removeListener('vscode:shellActiveView', onIpcActiveView);
 			}
 		});
 	}
@@ -185,7 +198,11 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 
 		// Don't notify if the window is in the foreground — the user can
 		// already see this workbench, so a badge would be redundant.
+		// Also set _acknowledged so that minor output (title changes, etc.)
+		// doesn't restart the timer and fire a notification after the user
+		// eventually switches away.
 		if (mainWindow.document.hasFocus()) {
+			this._acknowledged = true;
 			return;
 		}
 
