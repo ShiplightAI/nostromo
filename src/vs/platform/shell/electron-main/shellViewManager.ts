@@ -115,10 +115,11 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 			return;
 		}
 
-		// Hide all views for this window
+		// Hide all views for this window and notify them they are inactive
 		for (const [key, managed] of this.views) {
 			if (key.startsWith(`${windowId}:`)) {
 				managed.view.setVisible(false);
+				managed.view.webContents.send('vscode:shellActiveView', false);
 			}
 		}
 
@@ -135,6 +136,7 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		}
 
 		managed.view.setVisible(true);
+		managed.view.webContents.send('vscode:shellActiveView', true);
 		this.activeViews.set(windowId, folderPath);
 
 		this.logService.trace(`[ShellViewManager] Activated worktree view for ${folderPath} in window ${windowId}`);
