@@ -13,14 +13,16 @@ import { TerminalInputNotificationSettingId } from '../common/terminalInputNotif
 import { IShellNotificationService } from '../../../../services/shell/browser/shellNotificationService.js';
 
 /**
- * Detects when a terminal process appears to be waiting for user input
- * (based on bracketed paste mode being active + output silence) and
- * sends a notification to the shell sidebar so a badge is shown
- * next to the worktree entry.
+ * Detects when a terminal in a background workbench has new output followed
+ * by silence, and sends a notification to the shell sidebar so a bell badge
+ * is shown next to the worktree entry.
  *
- * This is useful when running CLI agents (e.g. claude, codex) across
- * multiple worktrees — only one worktree is visible at a time, and this
- * helps the user know which worktree needs attention.
+ * Rules:
+ * 1. Foreground/background status is tracked via shell.activeView messages
+ *    (web) and vscode:shellActiveView IPC (Electron).
+ * 2. A foreground workbench never sends notifications and clears any active one.
+ * 3. After going background, exactly one notification is allowed, triggered by
+ *    new terminal output followed by silence (no output for N seconds).
  */
 class TerminalInputNotificationContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.inputNotification';
@@ -29,11 +31,11 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 		return instance.getContribution<TerminalInputNotificationContribution>(TerminalInputNotificationContribution.ID);
 	}
 
-	private _bracketedPasteMode = false;
+	private _isBackground = false;
+	private _hasNewOutput = false; // new terminal output since going background
+	private _notified = false; // already sent one notification since going background
 	private _silenceTimer: ReturnType<typeof setTimeout> | undefined;
 	private _notificationActive = false;
-	private _acknowledged = false;
-	private _hasUserInput = false; // no notifications until user has typed at least once
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -44,71 +46,44 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		// Track bracketed paste mode transitions via CSI handler.
-		// CSI ? 2004 h = enable, CSI ? 2004 l = disable.
-		this._register(xterm.raw.parser.registerCsiHandler({ prefix: '?', final: 'h' }, params => {
-			for (let i = 0; i < params.length; i++) {
-				if (params[i] === 2004) {
-					this._onBracketedPasteModeChanged(true);
-				}
-			}
-			return false; // don't consume — let xterm handle normally
-		}));
-
-		this._register(xterm.raw.parser.registerCsiHandler({ prefix: '?', final: 'l' }, params => {
-			for (let i = 0; i < params.length; i++) {
-				if (params[i] === 2004) {
-					this._onBracketedPasteModeChanged(false);
-				}
-			}
-			return false;
-		}));
-
-		// Detect substantial output: cursor moves to new lines indicate real
-		// content being written, not just mode toggles like CSI ?2026h/l
-		// (synchronized output mode) which some CLIs emit periodically while idle.
+		// Detect substantial output: line feeds indicate real content being
+		// written (not just mode toggles like CSI ?2026h/l).
 		this._register(xterm.raw.onLineFeed(() => {
-			this._onSubstantialOutput();
+			this._onTerminalOutput();
 		}));
 
-		// Title changes also indicate output activity
+		// Title changes also indicate output activity.
 		this._register(xterm.raw.onTitleChange(() => {
-			this._onSubstantialOutput();
+			this._onTerminalOutput();
 		}));
 
-		// User input resets everything — they're actively interacting
+		// User input — clear any active notification since the user is
+		// interacting with this terminal directly.
 		this._register(xterm.raw.onData(() => {
-			this._hasUserInput = true;
-			this._acknowledged = false;
 			this._clearSilenceTimer();
 			this._clearNotification();
 		}));
 
-		// When this workbench becomes the active view, acknowledge the
-		// current notification so the silence timer doesn't re-fire while
-		// the terminal is still idle at the same prompt.
-		//
-		// Detection mechanisms:
-		// - `focus` event: works in Electron WebContentsView
-		// - `shell.activeView` postMessage: works in iframe-based shell
-		//   where CSS visibility:hidden doesn't trigger visibilitychange
-		//   or focus events on the iframe's document.
+		// Foreground/background tracking.
 		const onActivated = () => {
-			console.log('[InputNotification] workbench activated — acknowledging');
-			this._acknowledged = true;
+			console.log('[InputNotification] workbench activated');
+			this._isBackground = false;
+			this._hasNewOutput = false;
+			this._notified = false;
 			this._clearSilenceTimer();
 			this._clearNotification();
 		};
 		const onDeactivated = () => {
 			console.log('[InputNotification] workbench deactivated');
-			// Don't reset _acknowledged here — that only happens on new
-			// prompt cycles (BPM OFF→ON) or user input.
+			this._isBackground = true;
+			this._hasNewOutput = false;
+			this._notified = false;
 		};
 
-		// Electron: focus event fires when WebContentsView gains focus
+		// Electron: focus event fires when WebContentsView gains focus.
 		mainWindow.addEventListener('focus', onActivated);
 
-		// Web shell: parent posts shell.activeView messages when switching iframes
+		// Web shell: parent posts shell.activeView messages when switching iframes.
 		const onMessage = (e: MessageEvent) => {
 			if (e.data?.type === 'shell.activeView') {
 				console.log('[InputNotification] shell.activeView message, active:', e.data.active);
@@ -121,7 +96,7 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 		};
 		mainWindow.addEventListener('message', onMessage);
 
-		// Electron shell: main process sends IPC when switching WebContentsViews
+		// Electron shell: main process sends IPC when switching WebContentsViews.
 		const vscodeGlobal = (mainWindow as unknown as { vscode?: { ipcRenderer?: { on(channel: string, listener: (...args: unknown[]) => void): void; removeListener(channel: string, listener: (...args: unknown[]) => void): void } } }).vscode;
 		const onIpcActiveView = (_event: unknown, active: unknown) => {
 			console.log('[InputNotification] IPC shellActiveView, active:', active);
@@ -142,38 +117,20 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 		});
 	}
 
-	private _onBracketedPasteModeChanged(enabled: boolean): void {
-		const wasEnabled = this._bracketedPasteMode;
-		this._bracketedPasteMode = enabled;
-		if (enabled) {
-			// Only reset acknowledged on a genuine OFF→ON transition, meaning
-			// the agent ran (turned BPM off) and a new prompt appeared (turned
-			// BPM back on). A duplicate ON while already ON is not a new cycle.
-			if (!wasEnabled) {
-				this._acknowledged = false;
-			}
-			this._resetSilenceTimer();
-		} else {
-			// Bracketed paste mode turned off — process is likely executing.
-			this._clearSilenceTimer();
-			this._clearNotification();
-		}
-	}
-
-	private _onSubstantialOutput(): void {
-		if (!this._bracketedPasteMode) {
+	private _onTerminalOutput(): void {
+		if (!this._isBackground) {
 			return;
 		}
-		// Real output (line feeds, title changes) means the process is still
-		// producing output. Reset the silence timer.
-		this._resetSilenceTimer();
-		// Clear any active notification since the process is outputting
+		this._hasNewOutput = true;
+		// New output while in background — reset the silence timer.
+		// Clear any active notification since more output is coming.
 		this._clearNotification();
+		this._resetSilenceTimer();
 	}
 
 	private _resetSilenceTimer(): void {
 		this._clearSilenceTimer();
-		if (!this._isEnabled() || this._acknowledged || !this._hasUserInput) {
+		if (!this._isEnabled() || !this._isBackground || !this._hasNewOutput || this._notified) {
 			return;
 		}
 		const silenceMs = this._configurationService.getValue<number>(TerminalInputNotificationSettingId.InputNotificationSilenceMs) ?? 5000;
@@ -190,36 +147,22 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 	}
 
 	private _onSilenceDetected(): void {
-		console.log('[InputNotification] silence detected — bpm:', this._bracketedPasteMode,
-			'enabled:', this._isEnabled(), 'hasFocus:', mainWindow.document.hasFocus(),
-			'acknowledged:', this._acknowledged, 'active:', this._notificationActive);
+		console.log('[InputNotification] silence detected — background:', this._isBackground,
+			'hasNewOutput:', this._hasNewOutput, 'notified:', this._notified);
 
-		if (!this._bracketedPasteMode || !this._isEnabled() || !this._hasUserInput) {
-			return;
-		}
-
-		// Don't notify if the window is in the foreground — the user can
-		// already see this workbench, so a badge would be redundant.
-		// Also set _acknowledged so that minor output (title changes, etc.)
-		// doesn't restart the timer and fire a notification after the user
-		// eventually switches away.
-		if (mainWindow.document.hasFocus()) {
-			this._acknowledged = true;
-			return;
-		}
-
-		if (this._acknowledged || this._notificationActive) {
+		if (!this._isEnabled() || !this._isBackground || !this._hasNewOutput || this._notified) {
 			return;
 		}
 
 		console.log('[InputNotification] sending notification');
+		this._notified = true;
 		this._notificationActive = true;
 		this._shellNotificationService.notify({
 			type: 'terminalInputWaiting',
 			source: TerminalInputNotificationContribution.ID,
 			active: true,
 			severity: 'warning',
-			message: `Terminal: ${this._ctx.instance.title || 'Terminal'} — Waiting for your input`,
+			message: `Terminal: ${this._ctx.instance.title || 'Terminal'} — Needs attention`,
 		});
 	}
 
