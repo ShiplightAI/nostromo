@@ -469,6 +469,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	isSessionsWindow?: boolean;
 
 	isShellWindow?: boolean;
+
+	portOffset?: number;
 }
 
 /**

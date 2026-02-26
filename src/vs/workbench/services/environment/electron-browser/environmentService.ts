@@ -157,6 +157,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	@memoize
 	get isShellWindow(): boolean { return !!this.configuration.isShellWindow; }
 
+	@memoize
+	get portOffset(): number { return this.configuration.portOffset ?? 0; }
+
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,
 		productService: IProductService

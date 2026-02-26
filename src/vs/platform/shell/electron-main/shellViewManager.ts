@@ -46,6 +46,7 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 	private readonly views = new Map<string, IManagedView>(); // key: `${windowId}:${folderPath}`
 	private readonly activeViews = new Map<number, string>(); // windowId -> active folderPath
 	private readonly baseConfigs = new Map<number, INativeWindowConfiguration>(); // windowId -> config
+	private readonly viewCounters = new Map<number, number>(); // windowId -> next view index
 
 	constructor(
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
@@ -200,11 +201,16 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		// lifecycle events don't conflict. The utility process resolves the
 		// webContents directly via webContents.fromId() for port delivery,
 		// and finds the parent BrowserWindow for lifecycle binding.
+		// Assign a unique port offset per view within this window
+		const viewIndex = this.viewCounters.get(windowId) ?? 0;
+		this.viewCounters.set(windowId, viewIndex + 1);
+
 		if (baseConfig) {
 			const viewConfig: INativeWindowConfiguration = {
 				...baseConfig,
 				windowId: view.webContents.id,
 				workspace: workspaceIdentifier,
+				portOffset: viewIndex * 10,
 				// Clear file-open params from base config
 				filesToOpenOrCreate: undefined,
 				filesToDiff: undefined,

@@ -15,7 +15,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
-import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalEnvironment, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { AgentSessionProviders } from './agentSessions/agentSessions.js';
 import { DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -24,6 +24,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 type AgentTabKind = 'terminal' | 'copilot';
 
@@ -67,6 +68,7 @@ export class AgentTerminalViewPane extends ViewPane {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@IProductService private readonly _productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -215,6 +217,27 @@ export class AgentTerminalViewPane extends ViewPane {
 		this._activateTab(id);
 	}
 
+	private _getPortEnv(): ITerminalEnvironment {
+		const offset = this._environmentService.portOffset;
+		if (offset === 0) {
+			return {};
+		}
+		return {
+			PORT_OFFSET: String(offset),
+			FRONTEND_PORT: String(3000 + offset),
+			CORE_API_PORT: String(3001 + offset),
+			LLM_API_PORT: String(3004 + offset),
+			SANDBOX_PORT: String(4000 + offset),
+			AGENT_WORKER_PORT: String(8000 + offset),
+			API_BASE_URL: `http://localhost:${3001 + offset}`,
+			INT_RUNNER_URL: `http://localhost:${4000 + offset}`,
+			PLANNING_AGENT_URL: `http://localhost:${8001 + offset}`,
+			LLM_API_URL: `http://localhost:${3004 + offset}`,
+			FRONTEND_BASE_URL: `http://localhost:${3000 + offset}`,
+			NEXT_PUBLIC_SITE_URL: `http://localhost:${3000 + offset}`,
+		};
+	}
+
 	private async _addTerminalTab(command: string, name: string): Promise<void> {
 		if (!this._tabBar || !this._terminalContainer) {
 			return;
@@ -249,6 +272,7 @@ export class AgentTerminalViewPane extends ViewPane {
 					name,
 					isFeatureTerminal: true,
 					hideFromUser: true,
+					env: this._getPortEnv(),
 				},
 				location: TerminalLocation.Panel,
 			});
