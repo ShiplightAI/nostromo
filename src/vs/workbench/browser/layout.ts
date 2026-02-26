@@ -2793,7 +2793,7 @@ const LayoutStateKeys = {
 
 	// Part Visibility
 	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true),
-	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
 	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
@@ -2913,8 +2913,8 @@ class LayoutStateModel extends Disposable {
 		const workbenchState = this.contextService.getWorkbenchState();
 		const mainContainerDimension = configuration.mainContainerDimension;
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
-		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY || auxiliaryBarForceMaximized === true;
-		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = auxiliaryBarForceMaximized ? Math.max(300, mainContainerDimension.width / 2) : Math.min(600, mainContainerDimension.width / 3);
+		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = true;
+		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = auxiliaryBarForceMaximized ? Math.max(300, mainContainerDimension.width / 2) : Math.max(300, mainContainerDimension.width / 2);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
 			if (auxiliaryBarForceMaximized === true) {
 				return false; // forced to be visible
@@ -2995,6 +2995,13 @@ class LayoutStateModel extends Disposable {
 			}
 		}
 
+		// Panel maximized by default: hide editor so panel fills the space
+		if (this.isNew[StorageScope.WORKSPACE]) {
+			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
+			this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, false);
+			this.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, true);
+		}
+
 		// Both editor and panel should not be hidden on startup unless auxiliary bar is maximized
 		if (
 			this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) &&
@@ -3004,10 +3011,9 @@ class LayoutStateModel extends Disposable {
 			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
 
-		// Restrict auxiliary bar size in case of small window dimensions
+		// Restrict sidebar size in case of small window dimensions
 		if (this.isNew[StorageScope.WORKSPACE] && configuration.mainContainerDimension.width <= DEFAULT_WORKSPACE_WINDOW_DIMENSIONS.width) {
 			this.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
-			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
 		}
 	}
 
