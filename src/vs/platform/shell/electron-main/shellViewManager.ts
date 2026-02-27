@@ -196,10 +196,13 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		const configObjectUrl = this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>();
 
 		// Build a full INativeWindowConfiguration by cloning the parent window's config
-		// and replacing the workspace with the target folder
-		const folderUri = URI.file(folderPath);
-		const folderId = createHash('md5').update(folderUri.toString()).digest('hex');
-		const workspaceIdentifier = { id: folderId, uri: folderUri };
+		// and replacing the workspace with the target folder.
+		// '__empty__' is a sentinel for opening an empty workbench (no folder).
+		const workspaceIdentifier = folderPath === '__empty__' ? undefined : (() => {
+			const folderUri = URI.file(folderPath);
+			const folderId = createHash('md5').update(folderUri.toString()).digest('hex');
+			return { id: folderId, uri: folderUri };
+		})();
 
 		const view = new WebContentsView({
 			webPreferences: {

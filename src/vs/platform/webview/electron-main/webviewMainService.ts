@@ -32,10 +32,15 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		if (typeof (id as WebviewWindowId).windowId === 'number') {
 			const { windowId } = (id as WebviewWindowId);
 			const window = this.windowsMainService.getWindowById(windowId);
-			if (!window?.win) {
-				throw new Error(`Invalid windowId: ${windowId}`);
+			if (window?.win) {
+				contents = window.win.webContents;
+			} else {
+				// Embedded shell views use webContents.id as windowId
+				contents = webContents.fromId(windowId);
+				if (!contents) {
+					throw new Error(`Invalid windowId: ${windowId}`);
+				}
 			}
-			contents = window.win.webContents;
 		} else {
 			const { webContentsId } = (id as WebviewWebContentsId);
 			contents = webContents.fromId(webContentsId);

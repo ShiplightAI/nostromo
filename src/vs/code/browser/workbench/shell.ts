@@ -41,6 +41,7 @@ export interface IShellNotification {
 export interface IShellSettings {
 	trackedRepositories: string[];
 	lastBrowsePath: string;
+	lastActiveWorktree?: string;
 }
 
 export interface IShellBackend {
@@ -351,8 +352,13 @@ function createWebBackend(config: IShellConfiguration, iframeContainer: HTMLElem
 				}
 
 				iframe = document.createElement('iframe');
-				const folderUri = `vscode-remote://${config.remoteAuthority}${worktreePath}`;
-				let iframeUrl = buildPath(config.serverBasePath, config.productPath, `/?folder=${encodeURIComponent(folderUri)}&embedded=true`);
+				let iframeUrl: string;
+				if (worktreePath === '__empty__') {
+					iframeUrl = buildPath(config.serverBasePath, config.productPath, '/?embedded=true');
+				} else {
+					const folderUri = `vscode-remote://${config.remoteAuthority}${worktreePath}`;
+					iframeUrl = buildPath(config.serverBasePath, config.productPath, `/?folder=${encodeURIComponent(folderUri)}&embedded=true`);
+				}
 				if (config.connectionToken) {
 					iframeUrl += `&tkn=${encodeURIComponent(config.connectionToken)}`;
 				}
@@ -367,9 +373,13 @@ function createWebBackend(config: IShellConfiguration, iframeContainer: HTMLElem
 			iframe.contentWindow?.postMessage({ type: 'shell.activeView', active: true }, '*');
 
 			// Update browser URL
-			const folderUri = `vscode-remote://${config.remoteAuthority}${worktreePath}`;
 			const newUrl = new URL(window.location.href);
-			newUrl.searchParams.set('folder', folderUri);
+			if (worktreePath === '__empty__') {
+				newUrl.searchParams.delete('folder');
+			} else {
+				const folderUri = `vscode-remote://${config.remoteAuthority}${worktreePath}`;
+				newUrl.searchParams.set('folder', folderUri);
+			}
 			history.replaceState(null, '', newUrl.toString());
 		},
 
@@ -427,7 +437,6 @@ export class ShellApplication {
 		}
 
 		this._setupEventListeners();
-		this._showEmptyState();
 
 		// Register notification handler
 		this.backend.onNotification?.(notification => this._handleNotification(notification));
@@ -458,11 +467,33 @@ export class ShellApplication {
 			this.trackedRepos = settings.trackedRepositories ?? [];
 			this.lastBrowsePath = settings.lastBrowsePath ?? '';
 			if (this.trackedRepos.length > 0) {
-				this.refreshWorktrees();
+				await this.refreshWorktrees();
+				// Auto-activate if no worktree is active from URL param
+				if (!this.activeWorktreePath) {
+					this._restoreOrShowEmpty(settings.lastActiveWorktree);
+				}
+			} else {
+				// No repos — show empty workbench for menu support
+				this._showEmptyWorkbench();
 			}
 		} catch (err) {
 			console.error('Failed to load shell settings:', err);
+			this._showEmptyWorkbench();
 		}
+	}
+
+	private _restoreOrShowEmpty(lastActiveWorktree?: string): void {
+		// Try to restore the last active worktree if it still exists
+		if (lastActiveWorktree) {
+			for (const worktrees of this.repoWorktrees.values()) {
+				if (worktrees.some(wt => wt.path === lastActiveWorktree)) {
+					this.switchToWorktree(lastActiveWorktree);
+					return;
+				}
+			}
+		}
+		// Last active worktree was removed or never set — show empty workbench
+		this._showEmptyWorkbench();
 	}
 
 	private _readSplashFromStorage(): Record<string, string | undefined> | undefined {
@@ -548,42 +579,10 @@ export class ShellApplication {
 		});
 	}
 
-	private _showEmptyState(): void {
-		if (this.iframeContainer.querySelectorAll('iframe').length === 0 && !this.iframeContainer.querySelector('.empty-state')) {
-			const empty = document.createElement('div');
-			empty.className = 'empty-state';
-
-			const icon = document.createElement('div');
-			icon.className = 'empty-state-icon';
-			icon.textContent = '\u{1F4C2}';
-
-			const title = document.createElement('div');
-			title.className = 'empty-state-title';
-			title.textContent = 'No Worktree Selected';
-
-			const subtitle = document.createElement('div');
-			subtitle.className = 'empty-state-subtitle';
-			subtitle.textContent = 'Add a repository to get started, then select a worktree to open.';
-
-			const btn = document.createElement('button');
-			btn.className = 'empty-state-btn';
-			btn.textContent = '+ Add Repository';
-			btn.addEventListener('click', () => {
-				this._showAddRepoMenu();
-			});
-
-			empty.appendChild(icon);
-			empty.appendChild(title);
-			empty.appendChild(subtitle);
-			empty.appendChild(btn);
-			this.iframeContainer.appendChild(empty);
-		}
-	}
-
-	private _removeEmptyState(): void {
-		const empty = this.iframeContainer.querySelector('.empty-state');
-		if (empty) {
-			empty.remove();
+	private _showEmptyWorkbench(): void {
+		if (this.iframeContainer.querySelectorAll('iframe').length === 0) {
+			// Load an empty workbench so menus and keybindings work immediately
+			this.backend.switchToWorktree('__empty__');
 		}
 	}
 
@@ -1007,7 +1006,7 @@ export class ShellApplication {
 			const newUrl = new URL(window.location.href);
 			newUrl.searchParams.delete('folder');
 			history.replaceState(null, '', newUrl.toString());
-			this._showEmptyState();
+			this._showEmptyWorkbench();
 		}
 
 		this.trackedRepos = this.trackedRepos.filter(r => r !== repoUri);
@@ -1019,7 +1018,8 @@ export class ShellApplication {
 	private _saveSettings(): void {
 		this.backend.saveSettings({
 			trackedRepositories: this.trackedRepos,
-			lastBrowsePath: this.lastBrowsePath
+			lastBrowsePath: this.lastBrowsePath,
+			lastActiveWorktree: this.activeWorktreePath ?? undefined
 		});
 	}
 
@@ -1269,7 +1269,7 @@ export class ShellApplication {
 				newUrl.searchParams.delete('folder');
 				history.replaceState(null, '', newUrl.toString());
 
-				this._showEmptyState();
+				this._showEmptyWorkbench();
 			}
 
 			await this.refreshWorktrees();
@@ -1364,7 +1364,11 @@ export class ShellApplication {
 		this._clearNotificationsForWorktree(worktreePath);
 
 		this.activeWorktreePath = worktreePath;
-		this._removeEmptyState();
+
+		// Persist last active worktree (skip sentinel)
+		if (worktreePath !== '__empty__') {
+			this._saveSettings();
+		}
 
 		this.backend.switchToWorktree(worktreePath);
 
