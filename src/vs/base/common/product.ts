@@ -66,6 +66,7 @@ export type ExtensionVirtualWorkspaceSupport = {
 
 export interface IProductConfiguration {
 	readonly version: string;
+	readonly releaseVersion?: string;
 	readonly date?: string;
 	readonly quality?: string;
 	readonly commit?: string;
@@ -156,6 +157,11 @@ export interface IProductConfiguration {
 		readonly ariaKey: string;
 	};
 
+	readonly posthogConfig?: {
+		readonly apiKey: string;
+		readonly host?: string;
+	};
+
 	readonly documentationUrl?: string;
 	readonly serverDocumentationUrl?: string;
 	readonly releaseNotesUrl?: string;
@@ -166,6 +172,7 @@ export interface IProductConfiguration {
 	readonly tipsAndTricksUrl?: string;
 	readonly newsletterSignupUrl?: string;
 	readonly youTubeUrl?: string;
+	readonly discordUrl?: string;
 	readonly requestFeatureUrl?: string;
 	readonly reportIssueUrl?: string;
 	readonly reportMarketplaceIssueUrl?: string;

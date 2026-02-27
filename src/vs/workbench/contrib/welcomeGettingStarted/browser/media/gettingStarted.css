@@ -110,11 +110,11 @@
 	max-width: 1200px;
 	margin: 0 auto;
 	grid-template-rows: 25% minmax(min-content, auto) min-content;
-	grid-template-columns: 1fr 6fr 1fr 6fr 1fr;
+	grid-template-columns: 1fr 12fr 1fr;
 	grid-template-areas:
-		".  header header header ."
-		". left-column . right-column ."
-		". footer footer footer .";
+		".  header  ."
+		". left-column ."
+		". footer .";
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
