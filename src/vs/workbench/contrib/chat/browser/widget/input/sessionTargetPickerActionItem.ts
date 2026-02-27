@@ -18,7 +18,9 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { AgentSessionProviders, backgroundAgentDisplayName, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AgentSessionProviders, backgroundAgentDisplayName, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -31,8 +33,7 @@ export interface ISessionTypeItem {
 	commandId: string;
 }
 
-const firstPartyCategory = { label: localize('chat.sessionTarget.category.agent', "Agent Types"), order: 1 };
-const otherCategory = { label: localize('chat.sessionTarget.category.other', "Other"), order: 2 };
+const agentsCategory = { label: localize('chat.sessionTarget.category.agents', "Agents"), order: 1 };
 
 /**
  * Action view item for selecting a session target in the chat interface.
@@ -53,6 +54,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -188,20 +190,26 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		return true;
 	}
 
-	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
-		return isFirstPartyAgentSessionProvider(sessionTypeItem.type) ? firstPartyCategory : otherCategory;
+	protected _getSessionCategory(_sessionTypeItem: ISessionTypeItem) {
+		return agentsCategory;
 	}
 
 	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
 		return undefined;
 	}
 
+	private _getDefaultAgentProvider(): AgentSessionProviders {
+		const configured = this.configurationService.getValue<string>(ChatConfiguration.DefaultAgentProvider);
+		return (configured as AgentSessionProviders) ?? AgentSessionProviders.Local;
+	}
+
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
 		const currentType = this._getSelectedSessionType();
 
-		const label = getAgentSessionProviderName(currentType ?? AgentSessionProviders.Local);
-		const icon = getAgentSessionProviderIcon(currentType ?? AgentSessionProviders.Local);
+		const fallback = this._getDefaultAgentProvider();
+		const label = getAgentSessionProviderName(currentType ?? fallback);
+		const icon = getAgentSessionProviderIcon(currentType ?? fallback);
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));

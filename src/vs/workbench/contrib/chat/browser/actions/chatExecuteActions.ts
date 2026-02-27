@@ -829,7 +829,8 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService);
+		const configurationService = accessor.get(IConfigurationService);
+		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}

@@ -43,6 +43,7 @@ export const code = [
 	createModuleDescription('vs/code/node/cliProcessMain'),
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-browser/workbench/workbench'),
+	createModuleDescription('vs/code/electron-browser/worktrees/worktrees'),
 	createModuleDescription('vs/sessions/electron-browser/sessions'),
 ];
 

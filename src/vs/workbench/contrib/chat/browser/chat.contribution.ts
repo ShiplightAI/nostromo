@@ -217,6 +217,19 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable' ? AgentsControlClickBehavior.Cycle : AgentsControlClickBehavior.Default,
 			tags: ['experimental']
 		},
+		[ChatConfiguration.DefaultAgentProvider]: {
+			type: 'string',
+			enum: ['local', 'copilotcli', 'copilot-cloud-agent', 'claude-code', 'openai-codex'],
+			enumDescriptions: [
+				nls.localize('chat.defaultAgentProvider.local', "Local agent running within VS Code."),
+				nls.localize('chat.defaultAgentProvider.background', "Background agent running locally via CLI."),
+				nls.localize('chat.defaultAgentProvider.cloud', "Cloud agent running remotely."),
+				nls.localize('chat.defaultAgentProvider.claude', "Claude Code agent."),
+				nls.localize('chat.defaultAgentProvider.codex', "OpenAI Codex agent."),
+			],
+			description: nls.localize('chat.defaultAgentProvider', "Controls which agent handles new chat sessions by default."),
+			default: 'local',
+		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the 'Agent Status' indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}. The unread/in-progress session indicators require {1} to be enabled.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),

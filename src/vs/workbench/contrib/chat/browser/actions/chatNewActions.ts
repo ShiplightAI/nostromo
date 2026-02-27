@@ -282,7 +282,7 @@ async function runNewChatAction(
 	await editingSession?.stop();
 
 	// Create a new session, preserving the session type (or using the specified one)
-	await clearChatSessionPreservingType(widget, viewsService, sessionType);
+	await clearChatSessionPreservingType(widget, viewsService, sessionType, configurationService);
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();

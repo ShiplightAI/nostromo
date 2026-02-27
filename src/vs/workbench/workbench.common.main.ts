@@ -91,6 +91,7 @@ import './services/extensionRecommendations/common/extensionIgnoredRecommendatio
 import './services/extensionRecommendations/common/workspaceExtensionsConfig.js';
 import './services/extensionManagement/common/extensionFeaturesManagemetService.js';
 import './services/notification/common/notificationService.js';
+import './services/shell/browser/shellNotificationService.js';
 import './services/userDataSync/common/userDataSyncUtil.js';
 import './services/userDataProfile/browser/userDataProfileImportExportService.js';
 import './services/userDataProfile/browser/userDataProfileManagement.js';
@@ -422,6 +423,9 @@ import './contrib/accessibility/browser/accessibility.contribution.js';
 
 // Metered Connection
 import './contrib/meteredConnection/browser/meteredConnection.contribution.js';
+
+// Discord
+import './contrib/discord/browser/discord.contribution.js';
 
 // Share
 import './contrib/share/browser/share.contribution.js';
