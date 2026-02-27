@@ -1,0 +1,55 @@
+{
+	"name": "claude-code",
+	"displayName": "Claude Code",
+	"description": "Claude Code CLI agent integration for VS Code",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.110.0"
+	},
+	"capabilities": {
+		"virtualWorkspaces": false,
+		"untrustedWorkspaces": {
+			"supported": false
+		}
+	},
+	"activationEvents": [
+		"onTerminalProfile:claude-code.claudeProfile",
+		"onTerminalProfile:claude-code.codexProfile",
+		"onTerminalProfile:claude-code.geminiProfile"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:claude-code",
+		"watch": "gulp watch-extension:claude-code"
+	},
+	"contributes": {
+		"terminal": {
+			"profiles": [
+				{
+					"id": "claude-code.claudeProfile",
+					"title": "Claude Code",
+					"icon": "$(claude)"
+				},
+				{
+					"id": "claude-code.codexProfile",
+					"title": "OpenAI Codex",
+					"icon": "$(openai)"
+				},
+				{
+					"id": "claude-code.geminiProfile",
+					"title": "Gemini CLI",
+					"icon": "$(terminal)"
+				}
+			]
+		}
+	},
+	"devDependencies": {
+		"@types/node": "^22.19.11"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	}
+}
