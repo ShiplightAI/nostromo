@@ -134,6 +134,8 @@ import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js'
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { ShellWorktreeService } from '../../platform/shell/electron-main/shellWorktreeService.js';
+import { IShellViewManager, ShellViewManager } from '../../platform/shell/electron-main/shellViewManager.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -253,6 +255,14 @@ export class CodeApplication extends Disposable {
 				if (frame.processId === window.webContents.mainFrame.processId) {
 					return true;
 				}
+
+				// Also allow requests from child WebContentsViews (e.g. shell worktree views)
+				for (const childView of window.contentView.children) {
+					const webContentsView = childView as Electron.WebContentsView | undefined;
+					if (webContentsView?.webContents?.mainFrame.processId === frame.processId) {
+						return true;
+					}
+				}
 			}
 
 			return false;
@@ -268,10 +278,17 @@ export class CodeApplication extends Disposable {
 				return false;
 			}
 
-			// Check to see if the request comes from one of the main editor windows.
-			for (const window of this.windowsMainService.getWindows()) {
-				if (window.win) {
-					if (frame.processId === window.win.webContents.mainFrame.processId) {
+			// Check to see if the request comes from one of the main windows (or child views) and not from embedded content
+			const windows = getAllWindowsExcludingOffscreen();
+			for (const window of windows) {
+				if (frame.processId === window.webContents.mainFrame.processId) {
+					return true;
+				}
+
+				// Also allow requests from child WebContentsViews (e.g. shell worktree views)
+				for (const childView of window.contentView.children) {
+					const webContentsView = childView as Electron.WebContentsView | undefined;
+					if (webContentsView?.webContents?.mainFrame.processId === frame.processId) {
 						return true;
 					}
 				}
@@ -1063,6 +1080,9 @@ export class CodeApplication extends Disposable {
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
+		// Shell View Manager
+		services.set(IShellViewManager, new SyncDescriptor(ShellViewManager));
+
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
@@ -1287,6 +1307,10 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// Shell Worktree Service (browse, git operations for worktree sidebar)
+		disposables.add(this.mainInstantiationService.createInstance(ShellWorktreeService));
+		disposables.add(accessor.get(IShellViewManager) as ShellViewManager);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

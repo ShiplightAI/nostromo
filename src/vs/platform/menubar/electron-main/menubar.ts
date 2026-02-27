@@ -25,6 +25,7 @@ import { IUpdateService, StateType } from '../../update/common/update.js';
 import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeMenu } from '../../window/common/window.js';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
+import { IShellViewManager } from '../../shell/electron-main/shellViewManager.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 
 const telemetryFrom = 'menu';
@@ -78,7 +79,8 @@ export class Menubar extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService private readonly productService: IProductService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@IShellViewManager private readonly shellViewManager: IShellViewManager
 	) {
 		super();
 
@@ -795,7 +797,19 @@ export class Menubar extends Disposable {
 				}
 			}
 
-			if (invocation.type === 'commandId') {
+			// Check if the window has an active shell view (embedded workbench).
+			// If so, route the action to that view's webContents instead of the
+			// parent window, which is just the shell UI without a command service.
+			const activeViewWebContents = activeBrowserWindow ? this.shellViewManager.getActiveViewWebContents(activeBrowserWindow.id) : undefined;
+			if (activeViewWebContents && !activeViewWebContents.isDestroyed()) {
+				if (invocation.type === 'commandId') {
+					const runActionPayload: INativeRunActionInWindowRequest = { id: invocation.commandId, from: 'menu' };
+					activeViewWebContents.send('vscode:runAction', runActionPayload);
+				} else {
+					const runKeybindingPayload: INativeRunKeybindingInWindowRequest = { userSettingsLabel: invocation.userSettingsLabel };
+					activeViewWebContents.send('vscode:runKeybinding', runKeybindingPayload);
+				}
+			} else if (invocation.type === 'commandId') {
 				const runActionPayload: INativeRunActionInWindowRequest = { id: invocation.commandId, from: 'menu' };
 				activeWindow.sendWhenReady('vscode:runAction', CancellationToken.None, runActionPayload);
 			} else {

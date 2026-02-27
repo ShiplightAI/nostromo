@@ -8,12 +8,14 @@ import type * as http from 'http';
 import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
+import * as os from 'os';
+import { execFile } from 'child_process';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { getMediaMime } from '../../base/common/mime.js';
 import { isLinux } from '../../base/common/platform.js';
 import { ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
-import { extname, dirname, join, normalize, posix, resolve } from '../../base/common/path.js';
+import { extname, dirname, join, normalize, posix, relative, resolve } from '../../base/common/path.js';
 import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from '../../base/common/network.js';
 import { generateUuid } from '../../base/common/uuid.js';
 import { IProductService } from '../../platform/product/common/productService.js';
@@ -126,7 +128,42 @@ export class WebClientServer {
 				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
 			}
 			if (pathname === '/') {
+				// Redirect bare / (no ?folder= or ?workspace=) to /worktrees
+				if (!parsedUrl.query['folder'] && !parsedUrl.query['workspace']) {
+					const basePath = (req.headers['x-forwarded-prefix'] as string) || this._basePath;
+					const shellPath = posix.join(basePath, this._productPath, '/worktrees');
+					const queryString = parsedUrl.search || '';
+					res.writeHead(302, { 'Location': shellPath + queryString });
+					return void res.end();
+				}
 				return this._handleRoot(req, res, parsedUrl);
+			}
+			if (pathname === '/worktrees') {
+				return this._handleShell(req, res);
+			}
+			if (pathname === '/api/worktrees') {
+				return this._handleWorktreeApi(req, res);
+			}
+			if (pathname === '/api/browse') {
+				return this._handleBrowseApi(req, res);
+			}
+			if (pathname === '/api/clone') {
+				return this._handleCloneApi(req, res);
+			}
+			if (pathname === '/api/worktree-remove') {
+				return this._handleWorktreeRemoveApi(req, res);
+			}
+			if (pathname === '/api/worktree-add') {
+				return this._handleWorktreeAddApi(req, res);
+			}
+			if (pathname === '/api/branches') {
+				return this._handleBranchesApi(req, res);
+			}
+			if (pathname === '/api/rename-branch') {
+				return this._handleRenameBranchApi(req, res);
+			}
+			if (pathname === '/api/shell-settings') {
+				return this._handleShellSettingsApi(req, res);
 			}
 			if (pathname === CALLBACK_PATH) {
 				// callback support
@@ -363,7 +400,7 @@ export class WebClientServer {
 			_wrapWebWorkerExtHostInIframe,
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
-			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
+			enableWorkspaceTrust: false,
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
 			productConfiguration,
@@ -453,6 +490,588 @@ export class WebClientServer {
 
 		res.writeHead(200, headers);
 		return void res.end(data);
+	}
+
+	/**
+	 * Handle HTTP requests for /worktrees
+	 */
+	private async _handleShell(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		const getFirstHeader = (headerName: string) => {
+			const val = req.headers[headerName];
+			return Array.isArray(val) ? val[0] : val;
+		};
+
+		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+
+		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
+		let remoteAuthority = (
+			useTestResolver
+				? 'test+test'
+				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
+		);
+		if (!remoteAuthority) {
+			return serveError(req, res, 400, 'Bad request.');
+		}
+		const forwardedPort = getFirstHeader('x-forwarded-port');
+		if (forwardedPort) {
+			const index = remoteAuthority.indexOf(':');
+			if (index !== -1) {
+				remoteAuthority = remoteAuthority.substring(0, index);
+			}
+			remoteAuthority += `:${forwardedPort}`;
+		}
+
+		const shellConfiguration = {
+			remoteAuthority,
+			serverBasePath: basePath,
+			productPath: this._productPath
+		};
+
+		const staticRoute = posix.join(basePath, this._productPath, STATIC_PATH);
+
+		const filePath = FileAccess.asFileUri(`vs/code/browser/workbench/shell${this._environmentService.isBuilt ? '' : '-dev'}.html`).fsPath;
+
+		const values: { [key: string]: string } = {
+			SHELL_CONFIGURATION: JSON.stringify(shellConfiguration).replace(/"/g, '&quot;'),
+			SHELL_WEB_BASE_URL: staticRoute
+		};
+
+		let data;
+		try {
+			const shellTemplate = (await promises.readFile(filePath)).toString();
+			data = shellTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
+		} catch (e) {
+			res.writeHead(404, { 'Content-Type': 'text/plain' });
+			return void res.end('Not found');
+		}
+
+		const cspDirectives = [
+			'default-src \'self\';',
+			'img-src \'self\' https: data: blob:;',
+			`script-src 'self' 'unsafe-eval' blob: ${this._getScriptCspHashes(data).join(' ')};`,
+			`frame-src 'self' https://*.vscode-cdn.net data:;`,
+			'style-src \'self\' \'unsafe-inline\';',
+			'connect-src \'self\' ws: wss: https:;',
+			'font-src \'self\' blob:;'
+		].join(' ');
+
+		const headers: http.OutgoingHttpHeaders = {
+			'Content-Type': 'text/html',
+			'Content-Security-Policy': cspDirectives
+		};
+		if (this._connectionToken.type !== ServerConnectionTokenType.None) {
+			headers['Set-Cookie'] = cookie.serialize(
+				connectionTokenCookieName,
+				this._connectionToken.value,
+				{
+					sameSite: 'lax',
+					maxAge: 60 * 60 * 24 * 7 /* 1 week */
+				}
+			);
+		}
+
+		res.writeHead(200, headers);
+		return void res.end(data);
+	}
+
+	private _readRequestBody(req: http.IncomingMessage): Promise<string> {
+		return new Promise<string>((resolve, reject) => {
+			let data = '';
+			req.on('data', chunk => { data += chunk; });
+			req.on('end', () => resolve(data));
+			req.on('error', reject);
+		});
+	}
+
+	/**
+	 * Handle POST requests for /api/worktrees
+	 */
+	private async _handleWorktreeApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let repoUris: string[];
+		try {
+			const parsed = JSON.parse(body);
+			repoUris = parsed.repoUris;
+			if (!Array.isArray(repoUris)) {
+				throw new Error('repoUris must be an array');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		interface IWorktreeInfo {
+			path: string;
+			head: string;
+			branch: string;
+			isBare: boolean;
+		}
+
+		interface IRepoWorktreeResult {
+			repoUri: string;
+			worktrees: IWorktreeInfo[];
+			error?: string;
+		}
+
+		const results: IRepoWorktreeResult[] = [];
+
+		for (const repoUri of repoUris) {
+			const repoPath = URI.parse(repoUri).fsPath;
+			try {
+				const stdout = await new Promise<string>((resolveExec, rejectExec) => {
+					execFile('git', ['worktree', 'list', '--porcelain'], { cwd: repoPath }, (err, stdout) => {
+						if (err) {
+							rejectExec(err);
+						} else {
+							resolveExec(stdout);
+						}
+					});
+				});
+
+				const worktrees: IWorktreeInfo[] = [];
+				const blocks = stdout.split('\n\n').filter(b => b.trim());
+				for (const block of blocks) {
+					const lines = block.split('\n');
+					let wtPath = '';
+					let head = '';
+					let branch = '';
+					let isBare = false;
+					for (const line of lines) {
+						if (line.startsWith('worktree ')) {
+							wtPath = line.substring('worktree '.length);
+						} else if (line.startsWith('HEAD ')) {
+							head = line.substring('HEAD '.length);
+						} else if (line.startsWith('branch ')) {
+							branch = line.substring('branch '.length);
+						} else if (line === 'bare') {
+							isBare = true;
+						}
+					}
+					if (wtPath) {
+						worktrees.push({ path: wtPath, head, branch, isBare });
+					}
+				}
+
+				results.push({ repoUri, worktrees });
+			} catch (err) {
+				results.push({ repoUri, worktrees: [], error: String(err) });
+			}
+		}
+
+		const responseData = JSON.stringify(results);
+		res.writeHead(200, {
+			'Content-Type': 'application/json',
+			'Content-Length': Buffer.byteLength(responseData)
+		});
+		return void res.end(responseData);
+	}
+
+	/**
+	 * Handle POST requests for /api/browse — list directory contents
+	 */
+	private async _handleBrowseApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let browsePath: string;
+		let showHidden = false;
+		try {
+			const parsed = JSON.parse(body);
+			browsePath = parsed.path || os.homedir();
+			showHidden = !!parsed.showHidden;
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			const resolvedPath = resolve(browsePath);
+			const entries = await promises.readdir(resolvedPath, { withFileTypes: true });
+			const dirs = entries
+				.filter(e => e.isDirectory() && (showHidden || !e.name.startsWith('.')))
+				.map(e => ({ name: e.name, isDirectory: true }))
+				.sort((a, b) => a.name.localeCompare(b.name));
+
+			const parent = dirname(resolvedPath) !== resolvedPath ? dirname(resolvedPath) : null;
+
+			const responseData = JSON.stringify({ path: resolvedPath, entries: dirs, parent });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			if (error.code === 'ENOENT') {
+				return serveError(req, res, 404, 'Directory not found');
+			}
+			if (error.code === 'EACCES') {
+				return serveError(req, res, 403, 'Permission denied');
+			}
+			return serveError(req, res, 500, String(error));
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/worktree-remove — remove a git worktree
+	 */
+	private async _handleWorktreeRemoveApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let repoPath: string;
+		let worktreePath: string;
+		try {
+			const parsed = JSON.parse(body);
+			repoPath = parsed.repoPath;
+			worktreePath = parsed.worktreePath;
+			if (!repoPath || !worktreePath) {
+				throw new Error('repoPath and worktreePath are required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			await new Promise<void>((resolveRemove, rejectRemove) => {
+				execFile('git', ['worktree', 'remove', worktreePath], { cwd: repoPath, timeout: 30000 }, (err) => {
+					if (err) {
+						rejectRemove(err);
+					} else {
+						resolveRemove();
+					}
+				});
+			});
+
+			const responseData = JSON.stringify({ success: true });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ success: false, error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/worktree-add — create a new git worktree
+	 */
+	private async _handleWorktreeAddApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let repoPath: string;
+		let branchName: string;
+		let newBranch: boolean;
+		try {
+			const parsed = JSON.parse(body);
+			repoPath = parsed.repoPath;
+			branchName = parsed.branchName;
+			newBranch = !!parsed.newBranch;
+			if (!repoPath || !branchName) {
+				throw new Error('repoPath and branchName are required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		const sanitized = branchName.replace(/\//g, '-');
+		const worktreePath = `${repoPath}-${sanitized}`;
+
+		try {
+			const args = newBranch
+				? ['worktree', 'add', '-b', branchName, worktreePath]
+				: ['worktree', 'add', worktreePath, branchName];
+
+			await new Promise<void>((resolveAdd, rejectAdd) => {
+				execFile('git', args, { cwd: repoPath, timeout: 30000 }, (err) => {
+					if (err) {
+						rejectAdd(err);
+					} else {
+						resolveAdd();
+					}
+				});
+			});
+
+			// Copy .env files from the main worktree (best-effort)
+			try {
+				await this._copyEnvFiles(repoPath, worktreePath);
+			} catch (envErr) {
+				this._logService.warn('[WebClientServer] Failed to copy .env files:', envErr);
+			}
+
+			const responseData = JSON.stringify({ success: true, path: worktreePath });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ success: false, error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/branches — list branches for a repo
+	 */
+	private async _handleBranchesApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let repoPath: string;
+		try {
+			const parsed = JSON.parse(body);
+			repoPath = parsed.repoPath;
+			if (!repoPath) {
+				throw new Error('repoPath is required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			const stdout = await new Promise<string>((resolveExec, rejectExec) => {
+				execFile('git', ['branch', '-a', '--no-color'], { cwd: repoPath }, (err, out) => {
+					if (err) {
+						rejectExec(err);
+					} else {
+						resolveExec(out);
+					}
+				});
+			});
+
+			const branches = stdout
+				.split('\n')
+				.map(line => line.replace(/^[*+]?\s+/, '').trim())
+				.filter(line => line && !line.includes(' -> '))
+				.map(line => line.replace(/^remotes\/origin\//, ''));
+			// Deduplicate
+			const unique = [...new Set(branches)];
+
+			const responseData = JSON.stringify({ branches: unique });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ branches: [], error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/rename-branch — rename a git branch
+	 */
+	private async _handleRenameBranchApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let worktreePath: string;
+		let oldBranch: string;
+		let newBranch: string;
+		try {
+			const parsed = JSON.parse(body);
+			worktreePath = parsed.worktreePath;
+			oldBranch = parsed.oldBranch;
+			newBranch = parsed.newBranch;
+			if (!worktreePath || !oldBranch || !newBranch) {
+				throw new Error('worktreePath, oldBranch, and newBranch are required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			await new Promise<string>((resolveExec, rejectExec) => {
+				execFile('git', ['branch', '-m', oldBranch, newBranch], { cwd: worktreePath }, (err, out) => {
+					if (err) {
+						rejectExec(err);
+					} else {
+						resolveExec(out);
+					}
+				});
+			});
+
+			const responseData = JSON.stringify({ success: true });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ success: false, error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/clone — clone a git repository
+	 */
+	private async _handleCloneApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let cloneUrl: string;
+		let destPath: string;
+		try {
+			const parsed = JSON.parse(body);
+			cloneUrl = parsed.url;
+			destPath = parsed.destPath;
+			if (!cloneUrl || !destPath) {
+				throw new Error('url and destPath are required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			await new Promise<void>((resolveClone, rejectClone) => {
+				execFile('git', ['clone', cloneUrl, destPath], { timeout: 120000 }, (err) => {
+					if (err) {
+						rejectClone(err);
+					} else {
+						resolveClone();
+					}
+				});
+			});
+
+			const responseData = JSON.stringify({ success: true, path: destPath });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ success: false, path: destPath, error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	private static readonly ENV_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out']);
+
+	/**
+	 * Recursively find and copy .env* files from source to dest worktree,
+	 * preserving relative directory structure. Skips files that already exist.
+	 */
+	private async _copyEnvFiles(sourcePath: string, destPath: string): Promise<void> {
+		const walk = async (dir: string): Promise<void> => {
+			let entries: import('fs').Dirent[];
+			try {
+				entries = await promises.readdir(dir, { withFileTypes: true });
+			} catch {
+				return;
+			}
+			for (const entry of entries) {
+				if (entry.isDirectory()) {
+					if (!WebClientServer.ENV_SKIP_DIRS.has(entry.name)) {
+						await walk(join(dir, entry.name));
+					}
+				} else if (entry.isFile() && entry.name.startsWith('.env')) {
+					const relPath = relative(sourcePath, join(dir, entry.name));
+					const destFile = join(destPath, relPath);
+					try {
+						await promises.access(destFile);
+						// File already exists — skip
+					} catch {
+						await promises.mkdir(dirname(destFile), { recursive: true });
+						await promises.copyFile(join(dir, entry.name), destFile);
+						this._logService.info(`[WebClientServer] Copied ${relPath} to new worktree`);
+					}
+				}
+			}
+		};
+		await walk(sourcePath);
+	}
+
+	/**
+	 * Handle GET/POST requests for /api/shell-settings — persist shell sidebar settings
+	 */
+	private async _handleShellSettingsApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		const settingsPath = join(this._environmentService.appSettingsHome.fsPath, 'shellSettings.json');
+
+		if (req.method === 'GET') {
+			try {
+				const data = await promises.readFile(settingsPath, 'utf-8');
+				const responseData = data;
+				res.writeHead(200, {
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(responseData)
+				});
+				return void res.end(responseData);
+			} catch {
+				const responseData = JSON.stringify({ trackedRepositories: [], lastBrowsePath: '' });
+				res.writeHead(200, {
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(responseData)
+				});
+				return void res.end(responseData);
+			}
+		}
+
+		if (req.method === 'POST') {
+			const body = await this._readRequestBody(req);
+			try {
+				// Validate JSON
+				JSON.parse(body);
+				const dir = dirname(settingsPath);
+				await promises.mkdir(dir, { recursive: true });
+				await promises.writeFile(settingsPath, body, 'utf-8');
+				const responseData = JSON.stringify({ success: true });
+				res.writeHead(200, {
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(responseData)
+				});
+				return void res.end(responseData);
+			} catch (e) {
+				return serveError(req, res, 400, 'Invalid request body');
+			}
+		}
+
+		return serveError(req, res, 405, 'Method not allowed');
 	}
 
 	private _getScriptCspHashes(content: string): string[] {

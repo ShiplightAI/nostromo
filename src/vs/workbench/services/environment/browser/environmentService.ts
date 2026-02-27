@@ -258,6 +258,12 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get isSessionsWindow(): boolean { return false; }
 
 	@memoize
+	get isShellWindow(): boolean { return false; }
+
+	@memoize
+	get portOffset(): number { return 0; }
+
+	@memoize
 	get profile(): string | undefined { return this.payload?.get('profile'); }
 
 	@memoize
