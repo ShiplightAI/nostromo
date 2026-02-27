@@ -164,6 +164,12 @@ export interface IWorkbenchConstructionOptions {
 	readonly serverBasePath?: string;
 
 	/**
+	 * When true, the workbench is running inside an iframe managed by the shell page.
+	 * Certain UI elements (like the worktree panel) will be hidden.
+	 */
+	readonly embedded?: boolean;
+
+	/**
 	 * The connection token to send to the server.
 	 */
 	readonly connectionToken?: string | Promise<string>;

@@ -9,6 +9,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { editorBackground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
+import { listHoverBackground, listActiveSelectionBackground } from '../../../../platform/theme/common/colors/listColors.js';
 import { getThemeTypeSelector, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../browser/parts/editor/editor.js';
 import * as themes from '../../../common/theme.js';
@@ -87,7 +88,9 @@ export class PartsSplash {
 				statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND)?.toString(),
 				statusBarBorder: theme.getColor(themes.STATUS_BAR_BORDER)?.toString(),
 				statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND)?.toString(),
-				windowBorder: theme.getColor(themes.WINDOW_ACTIVE_BORDER)?.toString() ?? theme.getColor(themes.WINDOW_INACTIVE_BORDER)?.toString()
+				windowBorder: theme.getColor(themes.WINDOW_ACTIVE_BORDER)?.toString() ?? theme.getColor(themes.WINDOW_INACTIVE_BORDER)?.toString(),
+				listHoverBackground: theme.getColor(listHoverBackground)?.toString(),
+				listActiveSelectionBackground: theme.getColor(listActiveSelectionBackground)?.toString()
 			},
 			layoutInfo: !this._shouldSaveLayoutInfo() ? undefined : {
 				sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
