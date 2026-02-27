@@ -349,10 +349,6 @@ export class ShellApplication {
 	}
 
 	private _setupEventListeners(): void {
-		document.getElementById('refresh-btn')!.addEventListener('click', () => {
-			this.refreshWorktrees();
-		});
-
 		document.getElementById('add-repo-btn')!.addEventListener('click', () => {
 			this._showAddRepoMenu();
 		});

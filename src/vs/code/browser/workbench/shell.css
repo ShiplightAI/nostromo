@@ -80,20 +80,6 @@ body:has(#shell-titlebar) {
 	color: #bbbbbb;
 }
 
-.icon-btn {
-	background: none;
-	border: none;
-	color: var(--shell-foreground, #cccccc);
-	cursor: pointer;
-	font-size: 16px;
-	padding: 2px 6px;
-	border-radius: 3px;
-}
-
-.icon-btn:hover {
-	background-color: var(--shell-sidebar-border, #3c3c3c);
-}
-
 #repo-list {
 	flex: 1;
 	overflow-y: auto;
