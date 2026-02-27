@@ -49,6 +49,7 @@ export interface IShellBackend {
 	addWorktree(repoPath: string, branchName: string, newBranch: boolean): Promise<{ success: boolean; path?: string; error?: string }>;
 	removeWorktree(repoPath: string, worktreePath: string): Promise<{ success: boolean; error?: string }>;
 	listBranches(repoPath: string): Promise<{ branches: string[] }>;
+	renameBranch(repoPath: string, worktreePath: string, oldBranch: string, newBranch: string): Promise<{ success: boolean; error?: string }>;
 	cloneRepo(url: string, destPath: string): Promise<{ success: boolean; path?: string; error?: string }>;
 	loadSettings(): Promise<IShellSettings>;
 	saveSettings(settings: IShellSettings): Promise<void>;
@@ -77,6 +78,35 @@ interface IShellConfiguration {
 			titleBarBorder?: string;
 		};
 	};
+}
+
+const WORKTREE_NAME_WORDS = [
+	'alpine', 'amber', 'arctic', 'aspen', 'atlas', 'aurora', 'bamboo', 'basil',
+	'birch', 'blaze', 'bloom', 'bolt', 'breeze', 'bronze', 'canyon', 'cedar',
+	'cherry', 'cliff', 'clover', 'cobalt', 'coral', 'cosmos', 'crest', 'crimson',
+	'crystal', 'cypress', 'dune', 'echo', 'ember', 'falcon', 'fern', 'fjord',
+	'flint', 'frost', 'garnet', 'glacier', 'grove', 'hazel', 'heather', 'horizon',
+	'indigo', 'iris', 'ivory', 'jade', 'jasper', 'juniper', 'lark', 'laurel',
+	'lemon', 'lily', 'lotus', 'lunar', 'maple', 'marble', 'meadow', 'mesa',
+	'mist', 'moss', 'nova', 'oasis', 'olive', 'onyx', 'orchid', 'otter',
+	'palm', 'pearl', 'pebble', 'pine', 'plum', 'prism', 'quartz', 'raven',
+	'reef', 'ridge', 'robin', 'ruby', 'sage', 'saffron', 'sequoia', 'sierra',
+	'slate', 'solar', 'spruce', 'summit', 'thorn', 'tiger', 'topaz', 'tulip',
+	'tundra', 'vale', 'violet', 'walnut', 'willow', 'wren', 'zenith', 'zephyr',
+];
+
+function generateWorktreeName(existingBranches: Set<string>): string {
+	const maxAttempts = WORKTREE_NAME_WORDS.length;
+	for (let i = 0; i < maxAttempts; i++) {
+		const word = WORKTREE_NAME_WORDS[Math.floor(Math.random() * WORKTREE_NAME_WORDS.length)];
+		const name = `wt-${word}`;
+		if (!existingBranches.has(name)) {
+			return name;
+		}
+	}
+	// Fallback: append a random number
+	const word = WORKTREE_NAME_WORDS[Math.floor(Math.random() * WORKTREE_NAME_WORDS.length)];
+	return `wt-${word}-${Math.floor(Math.random() * 1000)}`;
 }
 
 const MAX_IFRAMES = 5;
@@ -123,6 +153,7 @@ function createWebBackend(config: IShellConfiguration, iframeContainer: HTMLElem
 		addWorktree: (repoPath, branchName, newBranch) => fetchJson('/api/worktree-add', { repoPath, branchName, newBranch }),
 		removeWorktree: (repoPath, worktreePath) => fetchJson('/api/worktree-remove', { repoPath, worktreePath }),
 		listBranches: repoPath => fetchJson('/api/branches', { repoPath }),
+		renameBranch: (repoPath, worktreePath, oldBranch, newBranch) => fetchJson('/api/rename-branch', { repoPath, worktreePath, oldBranch, newBranch }),
 		cloneRepo: (url, destPath) => fetchJson('/api/clone', { url, destPath }),
 
 		async loadSettings(): Promise<IShellSettings> {
@@ -931,6 +962,14 @@ export class ShellApplication {
 				branchSpan.title = wt.path;
 				item.appendChild(branchSpan);
 
+				// Double-click to rename non-main worktree branches
+				if (!wt.isBare && wt !== mainWorktree) {
+					branchSpan.addEventListener('dblclick', e => {
+						e.stopPropagation();
+						this._startInlineRename(branchSpan, branchName, repoUri, wt);
+					});
+				}
+
 				// Show notification badge if this worktree has active notifications
 				const notifications = this._getNotificationsForWorktree(wt.path);
 				if (notifications.length > 0) {
@@ -980,105 +1019,18 @@ export class ShellApplication {
 
 		const repoPath = repoUri.replace(/^file:\/\//, '');
 
-		// Find the repo header that matches this repoUri
-		const sections = this.repoListEl.querySelectorAll('.repo-section');
-		let anchorEl: HTMLElement | null = null;
-		for (const section of sections) {
-			const header = section.querySelector('.repo-header') as HTMLElement | null;
-			if (header) {
-				const nameEl = header.querySelectorAll('span')[1];
-				const repoName = repoUri.split('/').filter(Boolean).pop() ?? '';
-				if (nameEl && nameEl.textContent === repoName) {
-					anchorEl = header;
-					break;
-				}
+		// Collect existing branch names to avoid collisions
+		const existingBranches = new Set<string>();
+		try {
+			const result = await this.backend.listBranches(repoPath);
+			for (const b of result.branches) {
+				existingBranches.add(b);
 			}
+		} catch {
+			// Best-effort; proceed even if branch listing fails
 		}
 
-		const menu = document.createElement('div');
-		menu.className = 'add-repo-menu worktree-menu';
-
-		const items = [
-			{ label: 'New Branch...', action: () => { dismiss(); this._addWorktreeNewBranch(repoPath); } },
-			{ label: 'Existing Branch...', action: () => { dismiss(); this._addWorktreeExistingBranch(repoPath); } }
-		];
-
-		let focusedIndex = -1;
-
-		const updateFocus = () => {
-			menu.querySelectorAll('.add-repo-menu-item').forEach((el, i) => {
-				el.classList.toggle('focused', i === focusedIndex);
-			});
-		};
-
-		for (const item of items) {
-			const el = document.createElement('div');
-			el.className = 'add-repo-menu-item';
-			el.textContent = item.label;
-			el.addEventListener('click', item.action);
-			menu.appendChild(el);
-		}
-
-		const dismiss = () => {
-			menu.remove();
-			document.removeEventListener('mousedown', outsideClickHandler);
-			document.removeEventListener('keydown', keyHandler);
-			this._activePopupDismiss = null;
-		};
-
-		const outsideClickHandler = (e: MouseEvent) => {
-			if (!menu.contains(e.target as Node)) {
-				dismiss();
-			}
-		};
-
-		const keyHandler = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				e.preventDefault();
-				dismiss();
-			} else if (e.key === 'ArrowDown') {
-				e.preventDefault();
-				focusedIndex = Math.min(focusedIndex + 1, items.length - 1);
-				updateFocus();
-			} else if (e.key === 'ArrowUp') {
-				e.preventDefault();
-				focusedIndex = Math.max(focusedIndex - 1, 0);
-				updateFocus();
-			} else if (e.key === 'Enter' && focusedIndex >= 0) {
-				e.preventDefault();
-				items[focusedIndex].action();
-			}
-		};
-
-		setTimeout(() => {
-			document.addEventListener('mousedown', outsideClickHandler);
-		}, 0);
-		document.addEventListener('keydown', keyHandler);
-
-		if (anchorEl) {
-			anchorEl.style.position = 'relative';
-			menu.style.top = '100%';
-			menu.style.left = '0';
-			menu.style.right = '0';
-			menu.style.bottom = 'auto';
-			menu.style.marginTop = '2px';
-			menu.style.marginBottom = '0';
-			anchorEl.appendChild(menu);
-		} else {
-			document.body.appendChild(menu);
-		}
-
-		this._activePopupDismiss = dismiss;
-	}
-
-	private async _addWorktreeNewBranch(repoPath: string): Promise<void> {
-		const branchName = await this._withOverlay(() => this._showQuickInput({
-			label: 'Enter new branch name',
-			placeholder: 'feature/my-branch'
-		}));
-		if (!branchName) {
-			return;
-		}
+		const branchName = generateWorktreeName(existingBranches);
 
 		try {
 			const result = await this.backend.addWorktree(repoPath, branchName, true);
@@ -1093,130 +1045,61 @@ export class ShellApplication {
 		}
 	}
 
-	private async _addWorktreeExistingBranch(repoPath: string): Promise<void> {
-		let branches: string[];
-		try {
-			const result = await this.backend.listBranches(repoPath);
-			branches = result.branches ?? [];
-		} catch (err) {
-			alert(`Failed to fetch branches: ${err}`);
-			return;
-		}
+	private _startInlineRename(branchSpan: HTMLSpanElement, currentName: string, repoUri: string, wt: IWorktreeInfo): void {
+		const input = document.createElement('input');
+		input.type = 'text';
+		input.className = 'wt-rename-input';
+		input.value = currentName;
+		input.spellcheck = false;
 
-		if (branches.length === 0) {
-			alert('No branches found.');
-			return;
-		}
+		const repoPath = repoUri.replace(/^file:\/\//, '');
 
-		const selected = await this._withOverlay(() => this._showBranchPicker(branches));
-		if (!selected) {
-			return;
-		}
-
-		try {
-			const result = await this.backend.addWorktree(repoPath, selected, false);
-			if (result.success) {
-				await this.refreshWorktrees();
-				this.switchToWorktree(result.path!);
-			} else {
-				alert(`Failed to add worktree: ${result.error}`);
+		const commit = async () => {
+			const newName = input.value.trim();
+			if (newName && newName !== currentName) {
+				try {
+					const result = await this.backend.renameBranch(repoPath, wt.path, currentName, newName);
+					if (result.success) {
+						await this.refreshWorktrees();
+						return;
+					} else {
+						alert(`Failed to rename branch: ${result.error}`);
+					}
+				} catch (err) {
+					alert(`Failed to rename branch: ${err}`);
+				}
 			}
-		} catch (err) {
-			alert(`Failed to add worktree: ${err}`);
-		}
-	}
+			cancel();
+		};
 
-	private _showBranchPicker(branches: string[]): Promise<string | null> {
-		return new Promise<string | null>(resolve => {
-			const overlay = document.createElement('div');
-			overlay.className = 'quick-input-overlay';
+		const cancel = () => {
+			if (input.parentNode) {
+				input.replaceWith(branchSpan);
+			}
+		};
 
-			const widget = document.createElement('div');
-			widget.className = 'quick-input-widget branch-picker';
-
-			const label = document.createElement('div');
-			label.className = 'quick-input-label';
-			label.textContent = 'Select a branch';
-
-			const filterInput = document.createElement('input');
-			filterInput.className = 'quick-input-field';
-			filterInput.type = 'text';
-			filterInput.placeholder = 'Filter branches...';
-			filterInput.spellcheck = false;
-
-			const list = document.createElement('div');
-			list.className = 'branch-picker-list';
-
-			widget.appendChild(label);
-			widget.appendChild(filterInput);
-			widget.appendChild(list);
-			overlay.appendChild(widget);
-
-			let focusedIndex = -1;
-			let filtered = branches.slice();
-
-			const dismiss = (result: string | null) => {
-				overlay.remove();
-				resolve(result);
-			};
-
-			const renderList = () => {
-				list.innerHTML = '';
-				focusedIndex = filtered.length > 0 ? 0 : -1;
-				for (let i = 0; i < filtered.length; i++) {
-					const el = document.createElement('div');
-					el.className = 'branch-picker-item';
-					if (i === focusedIndex) {
-						el.classList.add('focused');
-					}
-					el.textContent = filtered[i];
-					el.addEventListener('click', () => dismiss(filtered[i]));
-					list.appendChild(el);
-				}
-			};
-
-			const updateFocus = () => {
-				list.querySelectorAll('.branch-picker-item').forEach((el, i) => {
-					el.classList.toggle('focused', i === focusedIndex);
-					if (i === focusedIndex) {
-						el.scrollIntoView({ block: 'nearest' });
-					}
-				});
-			};
-
-			filterInput.addEventListener('input', () => {
-				const q = filterInput.value.toLowerCase();
-				filtered = branches.filter(b => b.toLowerCase().includes(q));
-				renderList();
-			});
-
-			filterInput.addEventListener('keydown', e => {
-				if (e.key === 'Escape') {
-					dismiss(null);
-				} else if (e.key === 'ArrowDown') {
-					e.preventDefault();
-					focusedIndex = Math.min(focusedIndex + 1, filtered.length - 1);
-					updateFocus();
-				} else if (e.key === 'ArrowUp') {
-					e.preventDefault();
-					focusedIndex = Math.max(focusedIndex - 1, 0);
-					updateFocus();
-				} else if (e.key === 'Enter' && focusedIndex >= 0) {
-					e.preventDefault();
-					dismiss(filtered[focusedIndex]);
-				}
-			});
-
-			overlay.addEventListener('mousedown', e => {
-				if (e.target === overlay) {
-					dismiss(null);
-				}
-			});
-
-			document.body.appendChild(overlay);
-			filterInput.focus();
-			renderList();
+		input.addEventListener('keydown', e => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				commit();
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				cancel();
+			}
+			e.stopPropagation();
 		});
+
+		input.addEventListener('blur', () => {
+			commit();
+		});
+
+		input.addEventListener('click', e => {
+			e.stopPropagation();
+		});
+
+		branchSpan.replaceWith(input);
+		input.focus();
+		input.select();
 	}
 
 	private async _archiveWorktree(repoUri: string, wt: IWorktreeInfo): Promise<void> {

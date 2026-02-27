@@ -201,6 +201,18 @@ body:has(#shell-titlebar) {
 	white-space: nowrap;
 }
 
+.worktree-item .wt-rename-input {
+	background: var(--shell-background, #1e1e1e);
+	color: var(--shell-foreground, #ccc);
+	border: 1px solid var(--shell-active-bg, #094771);
+	border-radius: 2px;
+	padding: 0 4px;
+	font: inherit;
+	width: 100%;
+	outline: none;
+	box-sizing: border-box;
+}
+
 .worktree-item .archive-btn {
 	margin-left: auto;
 	background: none;

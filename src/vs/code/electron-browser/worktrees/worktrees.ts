@@ -48,6 +48,10 @@ function createElectronBackend(windowId: number, ipcRenderer: IPreloadGlobals['i
 			return ipcRenderer.invoke('vscode:shellWorktree-listBranches', repoPath) as Promise<{ branches: string[] }>;
 		},
 
+		async renameBranch(repoPath: string, worktreePath: string, oldBranch: string, newBranch: string): Promise<{ success: boolean; error?: string }> {
+			return ipcRenderer.invoke('vscode:shellWorktree-renameBranch', repoPath, worktreePath, oldBranch, newBranch) as Promise<{ success: boolean; error?: string }>;
+		},
+
 		async cloneRepo(url: string, destPath: string): Promise<{ success: boolean; path?: string; error?: string }> {
 			return ipcRenderer.invoke('vscode:shellWorktree-cloneRepo', url, destPath) as Promise<{ success: boolean; path?: string; error?: string }>;
 		},

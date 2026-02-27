@@ -159,6 +159,9 @@ export class WebClientServer {
 			if (pathname === '/api/branches') {
 				return this._handleBranchesApi(req, res);
 			}
+			if (pathname === '/api/rename-branch') {
+				return this._handleRenameBranchApi(req, res);
+			}
 			if (pathname === '/api/shell-settings') {
 				return this._handleShellSettingsApi(req, res);
 			}
@@ -878,6 +881,58 @@ export class WebClientServer {
 			return void res.end(responseData);
 		} catch (error) {
 			const responseData = JSON.stringify({ branches: [], error: String(error) });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		}
+	}
+
+	/**
+	 * Handle POST requests for /api/rename-branch — rename a git branch
+	 */
+	private async _handleRenameBranchApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (req.method !== 'POST') {
+			return serveError(req, res, 405, 'Method not allowed');
+		}
+
+		const body = await this._readRequestBody(req);
+
+		let worktreePath: string;
+		let oldBranch: string;
+		let newBranch: string;
+		try {
+			const parsed = JSON.parse(body);
+			worktreePath = parsed.worktreePath;
+			oldBranch = parsed.oldBranch;
+			newBranch = parsed.newBranch;
+			if (!worktreePath || !oldBranch || !newBranch) {
+				throw new Error('worktreePath, oldBranch, and newBranch are required');
+			}
+		} catch (e) {
+			return serveError(req, res, 400, 'Invalid request body');
+		}
+
+		try {
+			await new Promise<string>((resolveExec, rejectExec) => {
+				execFile('git', ['branch', '-m', oldBranch, newBranch], { cwd: worktreePath }, (err, out) => {
+					if (err) {
+						rejectExec(err);
+					} else {
+						resolveExec(out);
+					}
+				});
+			});
+
+			const responseData = JSON.stringify({ success: true });
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(responseData)
+			});
+			return void res.end(responseData);
+		} catch (error) {
+			const responseData = JSON.stringify({ success: false, error: String(error) });
 			res.writeHead(200, {
 				'Content-Type': 'application/json',
 				'Content-Length': Buffer.byteLength(responseData)

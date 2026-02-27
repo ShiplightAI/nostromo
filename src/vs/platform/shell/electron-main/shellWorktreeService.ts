@@ -79,6 +79,10 @@ export class ShellWorktreeService extends Disposable {
 			return this.listBranches(repoPath);
 		});
 
+		validatedIpcMain.handle('vscode:shellWorktree-renameBranch', (_event, repoPath: string, worktreePath: string, oldBranch: string, newBranch: string) => {
+			return this.renameBranch(repoPath, worktreePath, oldBranch, newBranch);
+		});
+
 		validatedIpcMain.handle('vscode:shellWorktree-cloneRepo', (_event, url: string, destPath: string) => {
 			return this.cloneRepo(url, destPath);
 		});
@@ -227,6 +231,15 @@ export class ShellWorktreeService extends Disposable {
 		}
 	}
 
+	async renameBranch(repoPath: string, worktreePath: string, oldBranch: string, newBranch: string): Promise<{ success: boolean; error?: string }> {
+		try {
+			await this._execGit(['branch', '-m', oldBranch, newBranch], worktreePath);
+			return { success: true };
+		} catch (err) {
+			return { success: false, error: String(err) };
+		}
+	}
+
 	async cloneRepo(url: string, destPath: string): Promise<{ success: boolean; path?: string; error?: string }> {
 		try {
 			await this._execGit(['clone', url, destPath], undefined, 120000);
@@ -291,6 +304,7 @@ export class ShellWorktreeService extends Disposable {
 		validatedIpcMain.removeHandler('vscode:shellWorktree-addWorktree');
 		validatedIpcMain.removeHandler('vscode:shellWorktree-removeWorktree');
 		validatedIpcMain.removeHandler('vscode:shellWorktree-listBranches');
+		validatedIpcMain.removeHandler('vscode:shellWorktree-renameBranch');
 		validatedIpcMain.removeHandler('vscode:shellWorktree-cloneRepo');
 		validatedIpcMain.removeHandler('vscode:shellWorktree-loadSettings');
 		validatedIpcMain.removeHandler('vscode:shellWorktree-saveSettings');
