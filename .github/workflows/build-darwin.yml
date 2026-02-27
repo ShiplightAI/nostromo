@@ -1,0 +1,170 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v0.1.0). Required for release creation.'
+        type: string
+        required: true
+      create_release:
+        description: 'Create a GitHub release with the DMG'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build macOS (arm64)
+    runs-on: macos-14-xlarge
+    env:
+      NPM_ARCH: arm64
+      VSCODE_ARCH: arm64
+      VSCODE_QUALITY: stable
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prepare node_modules cache key
+        run: |
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-macos-arm64-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          python3 -m pip install setuptools
+
+          for i in {1..5}; do
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed after 5 attempts" >&2
+              exit 1
+            fi
+            echo "npm ci failed on attempt $i, retrying..."
+          done
+        env:
+          npm_config_arch: arm64
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GYP_DEFINES: "kerberos_use_rtld=false"
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Prepare built-in extensions cache key
+        run: |
+          mkdir -p .build
+          node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache@v4
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Electron
+        run: |
+          set -e
+          for i in {1..3}; do
+            npm run electron arm64 && break
+            if [ $i -eq 3 ]; then
+              echo "Electron download failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Electron download failed on attempt $i, retrying..."
+            sleep 5
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build app bundle
+        run: npm run gulp vscode-darwin-arm64-min
+
+      - name: Create DMG
+        run: |
+          set -e
+          mkdir -p .build/darwin-dmg
+          node build/darwin/create-dmg.ts .. .build/darwin-dmg
+
+      - name: Rename DMG
+        run: |
+          DMG_FILE=$(ls .build/darwin-dmg/*.dmg)
+          mv "$DMG_FILE" ".build/darwin-dmg/Tachikoma-${{ inputs.version }}-darwin-arm64.dmg"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmg-darwin-arm64
+          path: .build/darwin-dmg/Tachikoma-*.dmg
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: inputs.create_release
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download DMG artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dmg-darwin-arm64
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: "Tachikoma ${{ inputs.version }}"
+          draft: true
+          files: artifacts/*.dmg
+          body: |
+            ## Installation (macOS)
+
+            1. Download the `.dmg` file below
+            2. Open the DMG and drag **Tachikoma** to Applications
+            3. **Before first launch**, open Terminal and run:
+               ```
+               xattr -cr /Applications/Tachikoma.app
+               ```
+            4. Open Tachikoma from Applications
+
+            > The app is not yet code-signed, so macOS Gatekeeper will block it without step 3.

@@ -71,10 +71,6 @@ async function main(buildDir?: string): Promise<void> {
 		throw new Error('$AGENT_BUILDDIRECTORY not set');
 	}
 
-	if (!tempDir) {
-		throw new Error('$AGENT_TEMPDIRECTORY not set');
-	}
-
 	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
 	const appName = product.nameLong + '.app';
 	const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
@@ -88,16 +84,21 @@ async function main(buildDir?: string): Promise<void> {
 		}),
 		preAutoEntitlements: false,
 		preEmbedProvisioningProfile: false,
-		keychain: path.join(tempDir, 'buildagent.keychain'),
 		version: getElectronVersion(),
 		identity,
 	};
+
+	// Only set keychain when running in CI (AGENT_TEMPDIRECTORY is set).
+	// When omitted, @electron/osx-sign uses the default login keychain.
+	if (tempDir) {
+		appOpts.keychain = path.join(tempDir, 'buildagent.keychain');
+	}
 
 	// Only overwrite plist entries for x64 and arm64 builds,
 	// universal will get its copy from the x64 build.
 	if (arch !== 'universal') {
 		await spawn('plutil', [
-			'-insert',
+			'-replace',
 			'NSAppleEventsUsageDescription',
 			'-string',
 			'An application in Visual Studio Code wants to use AppleScript.',

@@ -1,12 +1,7 @@
 name: Screenshot Tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches:
-      - main
-      - 'release/*'
+  workflow_dispatch:
 
 permissions:
   contents: read
