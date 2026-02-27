@@ -10,8 +10,7 @@ This is the **Visual Studio Code** (Code - OSS) repository — a large-scale Typ
 
 ### Initial Setup
 ```bash
-npm install
-cd extensions/claude-code && npm install && cd ../..  # Extension dependencies
+npm install       # Also installs extension dependencies (including claude-code)
 npm run electron  # Download Electron
 ```
 
