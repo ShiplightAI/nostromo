@@ -91,8 +91,14 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
-			await this.handleDefaultAccountAccess(configuredServiceUrl);
-			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.handleDefaultAccountAccess(configuredServiceUrl)));
+			const hasAccessSKUs = !!this.productService.extensionsGallery?.accessSKUs?.length;
+			if (hasAccessSKUs) {
+				await this.handleDefaultAccountAccess(configuredServiceUrl);
+				this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.handleDefaultAccountAccess(configuredServiceUrl)));
+			} else {
+				const manifest = this.buildManifestFromServiceUrl(configuredServiceUrl);
+				this.update(manifest);
+			}
 		} else {
 			const defaultExtensionGalleryManifest = await super.getExtensionGalleryManifest();
 			this.update(defaultExtensionGalleryManifest);
