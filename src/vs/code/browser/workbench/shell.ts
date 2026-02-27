@@ -969,12 +969,7 @@ export class ShellApplication {
 				// Show notification badge if this worktree has active notifications
 				const notifications = this._getNotificationsForWorktree(wt.path);
 				if (notifications.length > 0) {
-					const badge = document.createElement('span');
-					const hasWarning = notifications.some(n => n.severity === 'warning');
-					badge.className = 'wt-notification-badge' + (hasWarning ? ' warning' : '');
-					// allow-any-unicode-next-line
-					badge.textContent = '\uD83D\uDD14';
-					badge.title = notifications.map(n => n.message || n.type).join(', ');
+					const badge = this._createNotificationBadge(wt.path, notifications);
 					item.appendChild(badge);
 				}
 
@@ -1166,17 +1161,27 @@ export class ShellApplication {
 			// Add badge if there are active notifications
 			const notifications = this._getNotificationsForWorktree(worktreePath);
 			if (notifications.length > 0) {
-				const badge = document.createElement('span');
-				const hasWarning = notifications.some(n => n.severity === 'warning');
-				badge.className = 'wt-notification-badge' + (hasWarning ? ' warning' : '');
-				// allow-any-unicode-next-line
-				badge.textContent = '\uD83D\uDD14';
-				badge.title = notifications.map(n => n.message || n.type).join(', ');
+				const badge = this._createNotificationBadge(worktreePath, notifications);
 				// Insert badge after the branch span, before any other buttons
 				branchEl.after(badge);
 			}
 			break;
 		}
+	}
+
+	private _createNotificationBadge(worktreePath: string, notifications: IShellNotification[]): HTMLSpanElement {
+		const badge = document.createElement('span');
+		const hasWarning = notifications.some(n => n.severity === 'warning');
+		badge.className = 'wt-notification-badge' + (hasWarning ? ' warning' : '');
+		// allow-any-unicode-next-line
+		badge.textContent = '\uD83D\uDD14';
+		badge.title = notifications.map(n => n.message || n.type).join(', ');
+		badge.addEventListener('click', e => {
+			e.stopPropagation();
+			this._clearNotificationsForWorktree(worktreePath);
+			this._updateBadges(worktreePath);
+		});
+		return badge;
 	}
 
 	private _getNotificationsForWorktree(worktreePath: string): IShellNotification[] {
