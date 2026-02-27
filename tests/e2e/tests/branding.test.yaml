@@ -1,0 +1,31 @@
+name: Tachikoma branding is applied
+tags: [branding, smoke]
+
+goal: Verify the application shows Tachikoma branding instead of VS Code
+url: http://localhost:9888/oss-dev/worktrees
+
+statements:
+  - description: Wait for page to load
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 3
+
+  - description: Click on a worktree to open workbench
+    action_entity:
+      action_data:
+        action_name: click
+        kwargs:
+          element_index: 1
+      locator: "locator('div').filter({ hasText: 'main' }).nth(4)"
+      xpath: html/body/div[1]/div[2]/div[1]/div[2]/div[1]
+
+  - description: Wait for workbench to load
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 8
+
+  - "VERIFY: The page title or header contains 'Tachikoma' or the application branding is visible"

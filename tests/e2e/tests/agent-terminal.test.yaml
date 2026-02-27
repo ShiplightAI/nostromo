@@ -1,0 +1,33 @@
+name: Agent terminal panel shows in secondary sidebar
+tags: [agent, terminal]
+
+goal: Verify the agent terminal panel is visible in the secondary sidebar with tab management
+url: http://localhost:9888/oss-dev/worktrees
+
+statements:
+  - description: Wait for shell page to load
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 3
+
+  - description: Click on a worktree branch to open workbench
+    action_entity:
+      action_data:
+        action_name: click
+        kwargs:
+          element_index: 1
+      locator: "locator('div').filter({ hasText: 'main' }).nth(4)"
+      xpath: html/body/div[1]/div[2]/div[1]/div[2]/div[1]
+
+  - description: Wait for workbench to load
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 8
+
+  - "VERIFY: The secondary sidebar (auxiliary bar) is visible on the right side"
+
+  - "VERIFY: Agent terminal tabs are visible with at least one agent tab (e.g. Claude, bash)"

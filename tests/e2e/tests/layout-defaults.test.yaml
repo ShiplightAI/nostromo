@@ -1,0 +1,35 @@
+name: Default layout shows agent-first configuration
+tags: [layout, smoke]
+
+goal: Verify the default layout has sidebar on right, panel on bottom, and auxiliary bar visible
+url: http://localhost:9888/oss-dev/worktrees
+
+statements:
+  - description: Wait for shell page to load
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 3
+
+  - description: Click on a worktree to open workbench
+    action_entity:
+      action_data:
+        action_name: click
+        kwargs:
+          element_index: 1
+      locator: "locator('div').filter({ hasText: 'main' }).nth(4)"
+      xpath: html/body/div[1]/div[2]/div[1]/div[2]/div[1]
+
+  - description: Wait for workbench to fully load
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 8
+
+  - "VERIFY: The activity bar with Explorer, Search, Source Control icons is on the right side of the workbench"
+
+  - "VERIFY: A terminal or problems panel is visible at the bottom of the workbench"
+
+  - "VERIFY: The status bar at the bottom shows the git branch name"

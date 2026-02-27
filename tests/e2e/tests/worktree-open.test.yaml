@@ -1,0 +1,37 @@
+name: Open a worktree loads VS Code workbench
+tags: [shell, worktree, workbench]
+
+goal: Verify clicking a worktree in the sidebar loads a VS Code workbench instance
+url: http://localhost:9888/oss-dev/worktrees
+
+statements:
+  - description: Wait for shell page to load
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 3
+
+  - "VERIFY: The worktree sidebar is visible with at least one repository"
+
+  - description: Click on the main branch worktree
+    action_entity:
+      action_data:
+        action_name: click
+        kwargs:
+          element_index: 1
+      locator: "locator('div').filter({ hasText: 'main' }).nth(4)"
+      xpath: html/body/div[1]/div[2]/div[1]/div[2]/div[1]
+
+  - description: Wait for workbench to load in iframe
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 8
+
+  - "VERIFY: The URL now contains a folder query parameter"
+
+  - "VERIFY: A VS Code workbench is visible with an activity bar containing icons for Explorer, Search, Source Control"
+
+  - "VERIFY: A terminal panel is visible at the bottom of the workbench"

@@ -1,0 +1,28 @@
+name: Shell page loads with worktree sidebar
+tags: [shell, worktree, smoke]
+
+goal: Verify the shell page loads and displays the worktree sidebar with repository list
+url: http://localhost:9888
+
+statements:
+  - description: Wait for shell page to load and redirect to /worktrees
+    action_entity:
+      action_data:
+        action_name: wait
+        kwargs:
+          seconds: 3
+
+  - "VERIFY: The page URL contains /worktrees"
+
+  - "VERIFY: A sidebar labeled WORKTREES is visible on the left side"
+
+  - description: Verify Add Repository button is present
+    action_entity:
+      action_data:
+        action_name: verify
+        kwargs:
+          statement: "An '+ Add Repository' button is visible"
+      locator: "getByRole('button', { name: '+ Add Repository' })"
+      xpath: html/body/div[1]/div[3]/button
+
+  - "VERIFY: The main content area shows 'No Worktree Selected' or a loaded workbench"

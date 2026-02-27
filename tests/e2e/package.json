@@ -1,0 +1,14 @@
+{
+  "name": "my-shiplight-tests",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "@playwright/test": "1.55.0",
+    "playwright": "1.55.0",
+    "shiplightai": "^0.1.0",
+    "dotenv": "^16.4.7"
+  }
+}
