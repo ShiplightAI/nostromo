@@ -219,7 +219,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.DefaultAgentProvider]: {
 			type: 'string',
-			enum: ['local', 'copilotcli', 'copilot-cloud-agent', 'claude-code', 'openai-codex'],
+			enum: ['local', 'copilotcli', 'copilot-cloud-agent', 'terminal-profile', 'openai-codex'],
 			enumDescriptions: [
 				nls.localize('chat.defaultAgentProvider.local', "Local agent running within VS Code."),
 				nls.localize('chat.defaultAgentProvider.background', "Background agent running locally via CLI."),

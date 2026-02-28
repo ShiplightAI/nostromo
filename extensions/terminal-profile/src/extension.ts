@@ -16,19 +16,19 @@ interface CliAgentConfig {
 
 const CLI_AGENTS: CliAgentConfig[] = [
 	{
-		profileId: 'claude-code.claudeProfile',
+		profileId: 'terminal-profile.claudeProfile',
 		name: 'Claude Code',
 		command: 'claude',
 		installUrl: 'https://docs.anthropic.com/en/docs/claude-code/overview',
 	},
 	{
-		profileId: 'claude-code.codexProfile',
+		profileId: 'terminal-profile.codexProfile',
 		name: 'OpenAI Codex',
 		command: 'codex',
 		installUrl: 'https://github.com/openai/codex',
 	},
 	{
-		profileId: 'claude-code.geminiProfile',
+		profileId: 'terminal-profile.geminiProfile',
 		name: 'Gemini CLI',
 		command: 'gemini',
 		installUrl: 'https://github.com/google-gemini/gemini-cli',

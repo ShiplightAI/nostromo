@@ -16,7 +16,7 @@ export enum AgentSessionProviders {
 	Local = 'local',
 	Background = 'copilotcli',
 	Cloud = 'copilot-cloud-agent',
-	Claude = 'claude-code',
+	Claude = 'terminal-profile',
 	Codex = 'openai-codex',
 	Growth = 'copilot-growth',
 }

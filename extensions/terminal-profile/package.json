@@ -1,7 +1,7 @@
 {
-	"name": "claude-code",
-	"displayName": "Claude Code",
-	"description": "Claude Code CLI agent integration for VS Code",
+	"name": "terminal-profile",
+	"displayName": "Terminal Profile",
+	"description": "Terminal profile provider for CLI agents in VS Code",
 	"version": "0.0.1",
 	"publisher": "vscode",
 	"license": "MIT",
@@ -15,30 +15,30 @@
 		}
 	},
 	"activationEvents": [
-		"onTerminalProfile:claude-code.claudeProfile",
-		"onTerminalProfile:claude-code.codexProfile",
-		"onTerminalProfile:claude-code.geminiProfile"
+		"onTerminalProfile:terminal-profile.claudeProfile",
+		"onTerminalProfile:terminal-profile.codexProfile",
+		"onTerminalProfile:terminal-profile.geminiProfile"
 	],
 	"main": "./out/extension",
 	"scripts": {
-		"compile": "gulp compile-extension:claude-code",
-		"watch": "gulp watch-extension:claude-code"
+		"compile": "gulp compile-extension:terminal-profile",
+		"watch": "gulp watch-extension:terminal-profile"
 	},
 	"contributes": {
 		"terminal": {
 			"profiles": [
 				{
-					"id": "claude-code.claudeProfile",
+					"id": "terminal-profile.claudeProfile",
 					"title": "Claude Code",
 					"icon": "$(claude)"
 				},
 				{
-					"id": "claude-code.codexProfile",
+					"id": "terminal-profile.codexProfile",
 					"title": "OpenAI Codex",
 					"icon": "$(openai)"
 				},
 				{
-					"id": "claude-code.geminiProfile",
+					"id": "terminal-profile.geminiProfile",
 					"title": "Gemini CLI",
 					"icon": "$(terminal)"
 				}

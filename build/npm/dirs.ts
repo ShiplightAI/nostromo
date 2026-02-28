@@ -13,7 +13,7 @@ export const dirs = [
 	'build',
 	'build/vite',
 	'extensions',
-	'extensions/claude-code',
+	'extensions/terminal-profile',
 	'extensions/configuration-editing',
 	'extensions/css-language-features',
 	'extensions/css-language-features/server',
