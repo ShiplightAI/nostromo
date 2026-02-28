@@ -891,21 +891,44 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async triggerPaste(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		this.logService.trace(`Triggering paste in window ${windowId} with options:`, options);
+
+		const pasteInto = (contents: Electron.WebContents | null | undefined, source: string): boolean => {
+			if (contents && !contents.isDestroyed()) {
+				this.logService.trace(`Triggering paste via ${source} for webContents id ${contents.id}`);
+				contents.paste();
+				return true;
+			}
+			return false;
+		};
+
+		const targetId = options?.targetWindowId ?? windowId;
+		if (typeof targetId === 'number') {
+			if (pasteInto(webContents.fromId(targetId), 'targetWindowId')) {
+				return Promise.resolve();
+			}
+		}
+
+		if (pasteInto(webContents.getFocusedWebContents(), 'focused webContents')) {
+			return Promise.resolve();
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		if (window?.win) {
-			return window.win.webContents.paste();
+			if (pasteInto(window.win.webContents, 'registered window')) {
+				return Promise.resolve();
+			}
 		}
+
 		// Registered window without a BrowserWindow (e.g. shell-managed WebContentsViews)
 		if (window) {
-			const targetId = options?.targetWindowId ?? windowId;
 			if (typeof targetId === 'number') {
-				const contents = webContents.fromId(targetId);
-				if (contents && !contents.isDestroyed()) {
-					this.logService.trace(`Triggering paste via webContents fallback for id ${targetId}`);
-					return contents.paste();
+				if (pasteInto(webContents.fromId(targetId), 'webContents fallback')) {
+					return Promise.resolve();
 				}
 			}
 		}
+
+		return Promise.resolve();
 	}
 
 	async readImage(): Promise<Uint8Array> {
