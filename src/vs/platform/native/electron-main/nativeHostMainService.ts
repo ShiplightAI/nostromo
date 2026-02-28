@@ -895,14 +895,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (window?.win) {
 			return window.win.webContents.paste();
 		}
-		// Fallback for WebContentsViews (e.g. shell-managed workbench views)
-		// that are not registered as CodeWindows or AuxiliaryWindows
-		const targetId = options?.targetWindowId ?? windowId;
-		if (typeof targetId === 'number') {
-			const contents = webContents.fromId(targetId);
-			if (contents && !contents.isDestroyed()) {
-				this.logService.trace(`Triggering paste via webContents fallback for id ${targetId}`);
-				return contents.paste();
+		// Registered window without a BrowserWindow (e.g. shell-managed WebContentsViews)
+		if (window) {
+			const targetId = options?.targetWindowId ?? windowId;
+			if (typeof targetId === 'number') {
+				const contents = webContents.fromId(targetId);
+				if (contents && !contents.isDestroyed()) {
+					this.logService.trace(`Triggering paste via webContents fallback for id ${targetId}`);
+					return contents.paste();
+				}
 			}
 		}
 	}

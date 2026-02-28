@@ -158,6 +158,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		disposables.add(auxiliaryWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: auxiliaryWindow, x, y })));
 
 		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());
+		Event.once(Event.fromNodeEventEmitter(webContents, 'destroyed'))(() => disposables.dispose());
 	}
 
 	getWindowByWebContents(webContents: WebContents): AuxiliaryWindow | undefined {

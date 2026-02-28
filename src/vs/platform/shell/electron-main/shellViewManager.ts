@@ -15,6 +15,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 import { INativeWindowConfiguration } from '../../window/common/window.js';
 import { URI } from '../../../base/common/uri.js';
+import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 
 export const IShellViewManager = createDecorator<IShellViewManager>('shellViewManager');
 
@@ -51,7 +52,8 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 	constructor(
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
 		super();
 		this._registerIpcHandlers();
@@ -248,6 +250,9 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		const embeddedUrl = workbenchUrl + (workbenchUrl.includes('?') ? '&' : '?') + 'embedded=true';
 		this.logService.info(`[ShellViewManager] Loading workbench URL: ${embeddedUrl}`);
 		view.webContents.loadURL(embeddedUrl);
+
+		// Register with auxiliary windows service so that windowById() can find this view
+		this.auxiliaryWindowsMainService.registerWindow(view.webContents);
 
 		// Add to parent window
 		parentWindow.contentView.addChildView(view);
