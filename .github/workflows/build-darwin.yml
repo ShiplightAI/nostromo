@@ -129,7 +129,7 @@ jobs:
           mv "$DMG_FILE" ".build/darwin-dmg/Tachikoma-${{ inputs.version }}-darwin-arm64.dmg"
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dmg-darwin-arm64
           path: .build/darwin-dmg/Tachikoma-*.dmg
