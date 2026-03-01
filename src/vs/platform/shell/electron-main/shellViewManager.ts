@@ -12,7 +12,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
-import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
+import { getAllWindowsExcludingOffscreen, IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { FocusMode } from '../../native/common/native.js';
 import { INativeWindowConfiguration } from '../../window/common/window.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -53,7 +54,8 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
 	) {
 		super();
 		this._registerIpcHandlers();
@@ -93,6 +95,12 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 					const parentWindow = this._getWindow(windowId);
 					if (parentWindow) {
 						parentWindow.webContents.send('vscode:shellNotification', notification);
+
+						// Trigger OS dock badge for active notifications when window is not focused
+						const shellNotification = notification as { active?: boolean };
+						if (shellNotification.active && !parentWindow.isFocused()) {
+							this._triggerDockNotification(windowId);
+						}
 					}
 					break;
 				}
@@ -264,6 +272,13 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 			folderPath,
 			configDisposable: configObjectUrl
 		};
+	}
+
+	private _triggerDockNotification(windowId: number): void {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+		if (codeWindow) {
+			codeWindow.focus({ mode: FocusMode.Notify });
+		}
 	}
 
 	private _getWindow(windowId: number): Electron.BrowserWindow | undefined {
