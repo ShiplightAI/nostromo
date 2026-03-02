@@ -391,8 +391,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 			return;
 		}
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
-		// in which case we need to create the terminal group
-		if (value.shellLaunchConfig.hideFromUser) {
+		// in which case we need to create the terminal group. Skip if the terminal is already
+		// rendered in the DOM (e.g. managed by the agent terminal view pane) to avoid
+		// unexpectedly moving it to the panel.
+		if (value.shellLaunchConfig.hideFromUser && !value.domElement?.isConnected) {
 			this.showBackgroundTerminal(value);
 		}
 		if (value.target === TerminalLocation.Editor) {
