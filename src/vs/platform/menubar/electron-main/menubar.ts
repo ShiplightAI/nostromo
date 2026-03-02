@@ -703,14 +703,12 @@ export class Menubar extends Disposable {
 
 		if (isMacintosh) {
 
-			// Add role for special case menu items
-			if (commandId === 'editor.action.clipboardCutAction') {
-				options.role = 'cut';
-			} else if (commandId === 'editor.action.clipboardCopyAction') {
-				options.role = 'copy';
-			} else if (commandId === 'editor.action.clipboardPasteAction') {
-				options.role = 'paste';
-			}
+			// NOTE: We intentionally do NOT set { role: 'cut'/'copy'/'paste' }
+			// for clipboard menu items. Electron roles bypass the click handler
+			// and execute the native action on the BrowserWindow's webContents,
+			// which fails when the active editor lives in a child
+			// WebContentsView (shell view). Instead, the click handler routes
+			// the command to the correct webContents via runActionInRenderer.
 
 			// Add context aware click handlers for special case menu items
 			if (commandId === 'undo') {
