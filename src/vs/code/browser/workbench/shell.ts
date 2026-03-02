@@ -1281,23 +1281,17 @@ export class ShellApplication {
 	}
 
 	private _handleNotification(notification: IShellNotification): void {
-		const key = `${notification.worktreePath}:${notification.source}`;
-		if (notification.active) {
-			this._notifications.set(key, notification);
-			// Trigger OS dock badge when a worktree needs attention
-			this.backend.requestDockNotification?.();
-		} else {
-			if (notification.type) {
-				// Clear specific type from source
-				const existing = this._notifications.get(key);
-				if (existing && existing.type === notification.type) {
-					this._notifications.delete(key);
-				}
-			} else {
-				// Clear all from source
-				this._notifications.delete(key);
-			}
+		console.warn('[Shell] _handleNotification received:', JSON.stringify(notification));
+		if (!notification.active) {
+			// Ignore clear requests from the workbench — notifications are
+			// only dismissed when the user switches to the worktree (see
+			// switchToWorktree → _clearNotificationsForWorktree).
+			return;
 		}
+		const key = `${notification.worktreePath}:${notification.source}`;
+		this._notifications.set(key, notification);
+		// Trigger OS dock badge when a worktree needs attention
+		this.backend.requestDockNotification?.();
 		// Update badges in-place without re-rendering the whole list,
 		// so that the user's expand/collapse state is preserved.
 		this._updateBadges(notification.worktreePath);
@@ -1305,9 +1299,12 @@ export class ShellApplication {
 
 	private _updateBadges(worktreePath: string): void {
 		const items = this.repoListEl.querySelectorAll('.worktree-item');
+		console.warn('[Shell] _updateBadges looking for path:', worktreePath, '| DOM items:', items.length);
 		for (const item of items) {
 			const branchEl = item.querySelector('.wt-branch');
-			if (!branchEl || branchEl.getAttribute('title') !== worktreePath) {
+			const title = branchEl?.getAttribute('title');
+			console.warn('[Shell] _updateBadges checking item title:', title);
+			if (!branchEl || title !== worktreePath) {
 				continue;
 			}
 			// Remove existing badge
@@ -1336,8 +1333,6 @@ export class ShellApplication {
 		badge.addEventListener('click', e => {
 			e.stopPropagation();
 			this.switchToWorktree(worktreePath);
-			this._clearNotificationsForWorktree(worktreePath);
-			this._updateBadges(worktreePath);
 		});
 		return badge;
 	}
@@ -1367,6 +1362,7 @@ export class ShellApplication {
 
 		// Clear notifications for the worktree being switched to
 		this._clearNotificationsForWorktree(worktreePath);
+		this._updateBadges(worktreePath);
 
 		this.activeWorktreePath = worktreePath;
 
