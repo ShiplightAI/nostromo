@@ -62,6 +62,8 @@ export interface IShellBackend {
 	setActiveViewVisible?(visible: boolean): void;
 	/** Register a handler for notifications from workbench instances. */
 	onNotification?(handler: (notification: IShellNotification) => void): void;
+	/** Request OS dock badge / taskbar flash when a notification is active. */
+	requestDockNotification?(): void;
 }
 
 interface IShellConfiguration {
@@ -1282,6 +1284,8 @@ export class ShellApplication {
 		const key = `${notification.worktreePath}:${notification.source}`;
 		if (notification.active) {
 			this._notifications.set(key, notification);
+			// Trigger OS dock badge when a worktree needs attention
+			this.backend.requestDockNotification?.();
 		} else {
 			if (notification.type) {
 				// Clear specific type from source
@@ -1331,6 +1335,7 @@ export class ShellApplication {
 		badge.title = notifications.map(n => n.message || n.type).join(', ');
 		badge.addEventListener('click', e => {
 			e.stopPropagation();
+			this.switchToWorktree(worktreePath);
 			this._clearNotificationsForWorktree(worktreePath);
 			this._updateBadges(worktreePath);
 		});

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, WebContents, WebContentsView } from 'electron';
+import { app, BrowserWindow, Notification, WebContents, WebContentsView } from 'electron';
 import { createHash } from 'crypto';
 import { FileAccess } from '../../../base/common/network.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
@@ -12,8 +12,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
-import { getAllWindowsExcludingOffscreen, IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { FocusMode } from '../../native/common/native.js';
+import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
+import { isMacintosh, isWindows, isLinux } from '../../../base/common/platform.js';
 import { INativeWindowConfiguration } from '../../window/common/window.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -54,8 +54,7 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
 		super();
 		this._registerIpcHandlers();
@@ -96,14 +95,21 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 					if (parentWindow) {
 						parentWindow.webContents.send('vscode:shellNotification', notification);
 
-						// Trigger OS dock badge for active notifications when window is not focused
-						const shellNotification = notification as { active?: boolean };
+						// Show OS notification for active notifications when window is not focused
+						const shellNotification = notification as { active?: boolean; message?: string; worktreePath?: string };
 						if (shellNotification.active && !parentWindow.isFocused()) {
-							this._triggerDockNotification(windowId);
+							this._showOSNotification(parentWindow, shellNotification.message, shellNotification.worktreePath);
 						}
 					}
 					break;
 				}
+			}
+		});
+
+		validatedIpcMain.handle('vscode:shellView-dockNotification', async (_event) => {
+			const senderWindow = BrowserWindow.fromWebContents(_event.sender);
+			if (senderWindow && !senderWindow.isFocused()) {
+				this._triggerDockNotification(senderWindow);
 			}
 		});
 	}
@@ -274,11 +280,43 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		};
 	}
 
-	private _triggerDockNotification(windowId: number): void {
-		const codeWindow = this.windowsMainService.getWindowById(windowId);
-		if (codeWindow) {
-			codeWindow.focus({ mode: FocusMode.Notify });
+	private _showOSNotification(win: BrowserWindow, message?: string, worktreePath?: string): void {
+		if (!Notification.isSupported()) {
+			return;
 		}
+
+		const branchName = worktreePath?.split('/').pop() ?? 'Worktree';
+		const toast = new Notification({
+			title: branchName,
+			body: message || 'Terminal needs attention',
+		});
+		toast.on('click', () => {
+			win.show();
+			win.focus();
+		});
+		toast.show();
+	}
+
+	private _triggerDockNotification(win: BrowserWindow): void {
+		if (isMacintosh) {
+			app.dock?.bounce('informational');
+			app.dock?.setBadge('\u2022');
+		}
+		if (isWindows || isLinux) {
+			win.flashFrame(true);
+		}
+
+		// Auto-clear on focus
+		const onFocus = () => {
+			if (isMacintosh) {
+				app.dock?.setBadge('');
+			}
+			if (isWindows || isLinux) {
+				win.flashFrame(false);
+			}
+			win.removeListener('focus', onFocus);
+		};
+		win.on('focus', onFocus);
 	}
 
 	private _getWindow(windowId: number): Electron.BrowserWindow | undefined {
@@ -304,6 +342,7 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		validatedIpcMain.removeHandler('vscode:shellView-removeView');
 		validatedIpcMain.removeHandler('vscode:shellView-setActiveViewVisible');
 		validatedIpcMain.removeHandler('vscode:shellView-notifyShell');
+		validatedIpcMain.removeHandler('vscode:shellView-dockNotification');
 		super.dispose();
 	}
 }
