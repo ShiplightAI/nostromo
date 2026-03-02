@@ -88,6 +88,10 @@ function createElectronBackend(windowId: number, ipcRenderer: IPreloadGlobals['i
 			ipcRenderer.on('vscode:shellNotification', (_event: unknown, notification: unknown) => {
 				handler(notification as IShellNotification);
 			});
+		},
+
+		requestDockNotification(): void {
+			ipcRenderer.invoke('vscode:shellView-dockNotification');
 		}
 	};
 }
