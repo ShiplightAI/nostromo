@@ -892,7 +892,20 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async triggerPaste(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		this.logService.trace(`Triggering paste in window ${windowId} with options:`, options);
 		const window = this.windowById(options?.targetWindowId, windowId);
-		return window?.win?.webContents.paste() ?? Promise.resolve();
+		if (window?.win) {
+			return window.win.webContents.paste();
+		}
+
+		// The targetWindowId may be a WebContentsView (e.g. a shell-managed
+		// workbench view) whose webContents.id was used as the windowId but
+		// is not registered as a BrowserWindow or auxiliary window.
+		const targetId = options?.targetWindowId ?? windowId;
+		if (typeof targetId === 'number') {
+			const contents = webContents.fromId(targetId);
+			if (contents && !contents.isDestroyed()) {
+				return contents.paste();
+			}
+		}
 	}
 
 	async readImage(): Promise<Uint8Array> {

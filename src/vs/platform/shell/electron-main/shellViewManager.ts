@@ -48,8 +48,6 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 	private readonly activeViews = new Map<number, string>(); // windowId -> active folderPath
 	private readonly baseConfigs = new Map<number, INativeWindowConfiguration>(); // windowId -> config
 	private readonly viewCounters = new Map<number, number>(); // windowId -> next view index
-	private readonly keyboardForwardingWindows = new Set<number>(); // windowIds with listener installed
-	private readonly shellEditingState = new Map<number, boolean>(); // windowId -> shell has editable focus
 
 	constructor(
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
@@ -113,12 +111,6 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 			}
 		});
 
-		validatedIpcMain.handle('vscode:shellView-setShellEditing', async (_event, editing: boolean) => {
-			const senderWindow = BrowserWindow.fromWebContents(_event.sender);
-			if (senderWindow) {
-				this.shellEditingState.set(senderWindow.id, editing);
-			}
-		});
 	}
 
 	getActiveViewWebContents(windowId: number): WebContents | undefined {
@@ -272,9 +264,6 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		this.logService.info(`[ShellViewManager] Loading workbench URL: ${embeddedUrl}`);
 		view.webContents.loadURL(embeddedUrl);
 
-		// Set up keyboard forwarding for clipboard shortcuts on the parent window
-		this._setupKeyboardForwarding(windowId, parentWindow);
-
 		// Add to parent window
 		parentWindow.contentView.addChildView(view);
 
@@ -285,50 +274,6 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 			folderPath,
 			configDisposable: configObjectUrl
 		};
-	}
-
-	private _setupKeyboardForwarding(windowId: number, parentWindow: BrowserWindow): void {
-		if (this.keyboardForwardingWindows.has(windowId)) {
-			return;
-		}
-		this.keyboardForwardingWindows.add(windowId);
-
-		parentWindow.webContents.on('before-input-event', (event, input) => {
-			if (input.type !== 'keyDown') {
-				return;
-			}
-
-			const modifier = isMacintosh ? input.meta : input.control;
-			if (!modifier) {
-				return;
-			}
-
-			// Don't forward when the shell has an editable element focused
-			// (e.g. renaming a worktree) — let the shell handle it natively.
-			if (this.shellEditingState.get(windowId)) {
-				return;
-			}
-
-			const activeWc = this.getActiveViewWebContents(windowId);
-			if (!activeWc || activeWc.isDestroyed()) {
-				return;
-			}
-
-			switch (input.key.toLowerCase()) {
-				case 'c': activeWc.copy(); event.preventDefault(); break;
-				case 'v': activeWc.paste(); event.preventDefault(); break;
-				case 'x': activeWc.cut(); event.preventDefault(); break;
-				case 'a': activeWc.selectAll(); event.preventDefault(); break;
-				case 'z':
-					if (input.shift) {
-						activeWc.redo();
-					} else {
-						activeWc.undo();
-					}
-					event.preventDefault();
-					break;
-			}
-		});
 	}
 
 	private _showOSNotification(win: BrowserWindow, message?: string, worktreePath?: string): void {
@@ -394,7 +339,6 @@ export class ShellViewManager extends Disposable implements IShellViewManager {
 		validatedIpcMain.removeHandler('vscode:shellView-setActiveViewVisible');
 		validatedIpcMain.removeHandler('vscode:shellView-notifyShell');
 		validatedIpcMain.removeHandler('vscode:shellView-dockNotification');
-		validatedIpcMain.removeHandler('vscode:shellView-setShellEditing');
 		super.dispose();
 	}
 }
