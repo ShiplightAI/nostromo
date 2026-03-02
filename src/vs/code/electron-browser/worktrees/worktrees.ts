@@ -134,6 +134,17 @@ function createElectronBackend(windowId: number, ipcRenderer: IPreloadGlobals['i
 	const backend = createElectronBackend(windowId, ipcRenderer, contentArea);
 	new ShellApplication(backend);
 
+	// Notify main process when an editable element is focused so keyboard
+	// forwarding can be skipped (e.g. when renaming a worktree).
+	document.addEventListener('focusin', e => {
+		const el = e.target as HTMLElement;
+		const editable = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+		ipcRenderer.invoke('vscode:shellView-setShellEditing', editable);
+	});
+	document.addEventListener('focusout', () => {
+		ipcRenderer.invoke('vscode:shellView-setShellEditing', false);
+	});
+
 	// Use ResizeObserver to keep the WebContentsView layout in sync
 	const resizeObserver = new ResizeObserver(() => {
 		const rect = contentArea.getBoundingClientRect();
