@@ -707,8 +707,16 @@ export class Menubar extends Disposable {
 			// for clipboard menu items. Electron roles bypass the click handler
 			// and execute the native action on the BrowserWindow's webContents,
 			// which fails when the active editor lives in a child
-			// WebContentsView (shell view). Instead, the click handler routes
-			// the command to the correct webContents via runActionInRenderer.
+			// WebContentsView (shell view). Instead, we use context-aware click
+			// handlers that call the native Chromium clipboard methods on the
+			// correct webContents (the active shell view when present).
+			if (commandId === 'editor.action.clipboardCutAction') {
+				options.click = this.makeShellViewAwareClipboardHandler(click, wc => wc.cut(), 'cut:');
+			} else if (commandId === 'editor.action.clipboardCopyAction') {
+				options.click = this.makeShellViewAwareClipboardHandler(click, wc => wc.copy(), 'copy:');
+			} else if (commandId === 'editor.action.clipboardPasteAction') {
+				options.click = this.makeShellViewAwareClipboardHandler(click, wc => wc.paste(), 'paste:');
+			}
 
 			// Add context aware click handlers for special case menu items
 			if (commandId === 'undo') {
@@ -754,6 +762,36 @@ export class Menubar extends Disposable {
 
 			// Finally execute command in Window
 			click(menuItem, win || activeWindow, event);
+		};
+	}
+
+	private makeShellViewAwareClipboardHandler(
+		click: (menuItem: MenuItem, win: BaseWindow, event: KeyboardEvent) => void,
+		nativeAction: (wc: WebContents) => void,
+		firstResponderAction: string
+	): (menuItem: MenuItem, win: BaseWindow | undefined, event: KeyboardEvent) => void {
+		return (menuItem: MenuItem, win: BaseWindow | undefined, event: KeyboardEvent) => {
+			const activeWindow = BrowserWindow.getFocusedWindow();
+			if (!activeWindow) {
+				return Menu.sendActionToFirstResponder(firstResponderAction);
+			}
+
+			if (activeWindow.webContents.isDevToolsFocused() && activeWindow.webContents.devToolsWebContents) {
+				return nativeAction(activeWindow.webContents.devToolsWebContents);
+			}
+
+			// Route to the active shell view's webContents when present
+			const activeViewWc = this.shellViewManager.getActiveViewWebContents(activeWindow.id);
+			if (activeViewWc && !activeViewWc.isDestroyed()) {
+				return nativeAction(activeViewWc);
+			}
+
+			// No shell view — use the window's own webContents if focused
+			if (activeWindow.webContents.isFocused()) {
+				return nativeAction(activeWindow.webContents);
+			}
+
+			return Menu.sendActionToFirstResponder(firstResponderAction);
 		};
 	}
 
