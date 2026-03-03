@@ -887,7 +887,7 @@ export class ShellApplication {
 		});
 	}
 
-	private _showQuickInput(options: { label: string; placeholder: string }): Promise<string | null> {
+	private _showQuickInput(options: { label: string; placeholder: string; initialValue?: string }): Promise<string | null> {
 		return new Promise<string | null>(resolve => {
 			const overlay = document.createElement('div');
 			overlay.className = 'quick-input-overlay';
@@ -904,6 +904,9 @@ export class ShellApplication {
 			input.type = 'text';
 			input.placeholder = options.placeholder;
 			input.spellcheck = false;
+			if (options.initialValue) {
+				input.value = options.initialValue;
+			}
 
 			widget.appendChild(label);
 			widget.appendChild(input);
@@ -930,6 +933,7 @@ export class ShellApplication {
 
 			document.body.appendChild(overlay);
 			input.focus();
+			input.select();
 		});
 	}
 
@@ -1072,7 +1076,7 @@ export class ShellApplication {
 			addWtBtn.title = 'Add worktree';
 			addWtBtn.addEventListener('click', e => {
 				e.stopPropagation();
-				this._addWorktree(repoUri);
+				this._addWorktree(repoUri, header);
 			});
 
 			const removeBtn = document.createElement('button');
@@ -1160,12 +1164,85 @@ export class ShellApplication {
 		}
 	}
 
-	private async _addWorktree(repoUri: string): Promise<void> {
+	private _addWorktree(repoUri: string, anchorEl: HTMLElement): void {
 		this._dismissActivePopup();
 
 		const repoPath = repoUri.replace(/^file:\/\//, '');
 
-		// Collect existing branch names to avoid collisions
+		const menu = document.createElement('div');
+		menu.className = 'add-repo-menu';
+
+		const menuItems = [
+			{ label: 'New Branch...', action: () => { dismiss(); this._addWorktreeNewBranch(repoPath); } },
+			{ label: 'Existing Branch...', action: () => { dismiss(); this._addWorktreeExistingBranch(repoPath); } }
+		];
+
+		let focusedIndex = -1;
+
+		const updateFocus = () => {
+			menu.querySelectorAll('.add-repo-menu-item').forEach((el, i) => {
+				el.classList.toggle('focused', i === focusedIndex);
+			});
+		};
+
+		for (const menuItem of menuItems) {
+			const el = document.createElement('div');
+			el.className = 'add-repo-menu-item';
+			el.textContent = menuItem.label;
+			el.addEventListener('click', menuItem.action);
+			menu.appendChild(el);
+		}
+
+		const dismiss = () => {
+			menu.remove();
+			document.removeEventListener('mousedown', outsideClickHandler);
+			document.removeEventListener('keydown', keyHandler);
+			this._activePopupDismiss = null;
+		};
+
+		const outsideClickHandler = (e: MouseEvent) => {
+			if (!menu.contains(e.target as Node)) {
+				dismiss();
+			}
+		};
+
+		const keyHandler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				dismiss();
+			} else if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				focusedIndex = Math.min(focusedIndex + 1, menuItems.length - 1);
+				updateFocus();
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				focusedIndex = Math.max(focusedIndex - 1, 0);
+				updateFocus();
+			} else if (e.key === 'Enter' && focusedIndex >= 0) {
+				e.preventDefault();
+				menuItems[focusedIndex].action();
+			}
+		};
+
+		setTimeout(() => {
+			document.addEventListener('mousedown', outsideClickHandler);
+		}, 0);
+		document.addEventListener('keydown', keyHandler);
+
+		anchorEl.style.position = 'relative';
+		menu.style.top = '100%';
+		menu.style.left = '0';
+		menu.style.right = '0';
+		menu.style.bottom = 'auto';
+		menu.style.marginTop = '2px';
+		menu.style.marginBottom = '0';
+		anchorEl.appendChild(menu);
+
+		this._activePopupDismiss = dismiss;
+	}
+
+	private async _addWorktreeNewBranch(repoPath: string): Promise<void> {
+		// Pre-fill with an auto-generated name to avoid collisions
 		const existingBranches = new Set<string>();
 		try {
 			const result = await this.backend.listBranches(repoPath);
@@ -1175,8 +1252,16 @@ export class ShellApplication {
 		} catch {
 			// Best-effort; proceed even if branch listing fails
 		}
+		const suggestedName = generateWorktreeName(existingBranches, repoPath);
 
-		const branchName = generateWorktreeName(existingBranches, repoPath);
+		const branchName = await this._showQuickInput({
+			label: 'Enter new branch name',
+			placeholder: 'feature/my-branch',
+			initialValue: suggestedName
+		});
+		if (!branchName) {
+			return;
+		}
 
 		try {
 			const result = await this.backend.addWorktree(repoPath, branchName, true);
@@ -1189,6 +1274,132 @@ export class ShellApplication {
 		} catch (err) {
 			alert(`Failed to add worktree: ${err}`);
 		}
+	}
+
+	private async _addWorktreeExistingBranch(repoPath: string): Promise<void> {
+		let branches: string[];
+		try {
+			const result = await this.backend.listBranches(repoPath);
+			branches = result.branches ?? [];
+		} catch (err) {
+			alert(`Failed to fetch branches: ${err}`);
+			return;
+		}
+
+		if (branches.length === 0) {
+			alert('No branches found.');
+			return;
+		}
+
+		const selected = await this._showBranchPicker(branches);
+		if (!selected) {
+			return;
+		}
+
+		try {
+			const result = await this.backend.addWorktree(repoPath, selected, false);
+			if (result.success) {
+				await this.refreshWorktrees();
+				this.switchToWorktree(result.path!);
+			} else {
+				alert(`Failed to add worktree: ${result.error}`);
+			}
+		} catch (err) {
+			alert(`Failed to add worktree: ${err}`);
+		}
+	}
+
+	private _showBranchPicker(branches: string[]): Promise<string | null> {
+		return new Promise<string | null>(resolve => {
+			const overlay = document.createElement('div');
+			overlay.className = 'quick-input-overlay';
+
+			const widget = document.createElement('div');
+			widget.className = 'quick-input-widget branch-picker';
+
+			const label = document.createElement('div');
+			label.className = 'quick-input-label';
+			label.textContent = 'Select a branch';
+
+			const filterInput = document.createElement('input');
+			filterInput.className = 'quick-input-field';
+			filterInput.type = 'text';
+			filterInput.placeholder = 'Filter branches...';
+			filterInput.spellcheck = false;
+
+			const list = document.createElement('div');
+			list.className = 'branch-picker-list';
+
+			widget.appendChild(label);
+			widget.appendChild(filterInput);
+			widget.appendChild(list);
+			overlay.appendChild(widget);
+
+			let focusedIndex = -1;
+			let filtered = branches.slice();
+
+			const dismiss = (result: string | null) => {
+				overlay.remove();
+				resolve(result);
+			};
+
+			const renderList = () => {
+				list.innerHTML = '';
+				focusedIndex = filtered.length > 0 ? 0 : -1;
+				for (let i = 0; i < filtered.length; i++) {
+					const el = document.createElement('div');
+					el.className = 'branch-picker-item';
+					if (i === focusedIndex) {
+						el.classList.add('focused');
+					}
+					el.textContent = filtered[i];
+					el.addEventListener('click', () => dismiss(filtered[i]));
+					list.appendChild(el);
+				}
+			};
+
+			const updateFocus = () => {
+				list.querySelectorAll('.branch-picker-item').forEach((el, i) => {
+					el.classList.toggle('focused', i === focusedIndex);
+					if (i === focusedIndex) {
+						el.scrollIntoView({ block: 'nearest' });
+					}
+				});
+			};
+
+			filterInput.addEventListener('input', () => {
+				const q = filterInput.value.toLowerCase();
+				filtered = branches.filter(b => b.toLowerCase().includes(q));
+				renderList();
+			});
+
+			filterInput.addEventListener('keydown', e => {
+				if (e.key === 'Escape') {
+					dismiss(null);
+				} else if (e.key === 'ArrowDown') {
+					e.preventDefault();
+					focusedIndex = Math.min(focusedIndex + 1, filtered.length - 1);
+					updateFocus();
+				} else if (e.key === 'ArrowUp') {
+					e.preventDefault();
+					focusedIndex = Math.max(focusedIndex - 1, 0);
+					updateFocus();
+				} else if (e.key === 'Enter' && focusedIndex >= 0) {
+					e.preventDefault();
+					dismiss(filtered[focusedIndex]);
+				}
+			});
+
+			overlay.addEventListener('mousedown', e => {
+				if (e.target === overlay) {
+					dismiss(null);
+				}
+			});
+
+			document.body.appendChild(overlay);
+			filterInput.focus();
+			renderList();
+		});
 	}
 
 	private _startInlineRename(branchSpan: HTMLSpanElement, currentName: string, repoUri: string, wt: IWorktreeInfo): void {
