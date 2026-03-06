@@ -83,183 +83,6 @@ interface IShellConfiguration {
 	};
 }
 
-// --- Worktree naming schemes ---
-// Each repo is assigned a random scheme. Within that scheme, names are picked randomly.
-
-const WORKTREE_NAMING_SCHEMES: Record<string, string[]> = {
-	// Celestial bodies & space objects
-	cosmos: [
-		'andromeda', 'apollo', 'ariel', 'asteroid', 'callisto', 'cassini', 'celeste', 'centauri',
-		'ceres', 'comet', 'cosmos', 'deimos', 'eclipse', 'europa', 'galaxy', 'ganymede',
-		'halley', 'hubble', 'io', 'juno', 'kepler', 'luna', 'mars', 'meteor',
-		'miranda', 'nebula', 'neptune', 'nova', 'oberon', 'orbit', 'orion', 'phoebe',
-		'pluto', 'pulsar', 'quasar', 'saturn', 'sirius', 'solstice', 'stellar', 'supernova',
-		'titan', 'triton', 'umbra', 'vega', 'venus', 'vesta', 'voyager', 'zenith',
-		'zodiac', 'aurora', 'equinox', 'parsec', 'photon', 'corona',
-	],
-	// World cities
-	cities: [
-		'amsterdam', 'athens', 'austin', 'bali', 'barcelona', 'berlin', 'bogota', 'boston',
-		'cairo', 'capetown', 'chicago', 'copenhagen', 'denver', 'dublin', 'edinburgh', 'florence',
-		'geneva', 'havana', 'helsinki', 'hongkong', 'istanbul', 'jakarta', 'kyoto', 'lagos',
-		'lima', 'lisbon', 'london', 'madrid', 'manila', 'marrakech', 'melbourne', 'miami',
-		'milan', 'montreal', 'mumbai', 'nairobi', 'nashville', 'oslo', 'paris', 'portland',
-		'prague', 'rio', 'rome', 'santiago', 'seattle', 'seoul', 'shanghai', 'singapore',
-		'stockholm', 'sydney', 'taipei', 'tokyo', 'toronto', 'vienna',
-	],
-	// Fruits & berries
-	fruits: [
-		'apple', 'apricot', 'avocado', 'banana', 'blackberry', 'blueberry', 'cantaloupe', 'cherry',
-		'clementine', 'coconut', 'cranberry', 'currant', 'date', 'dragonfruit', 'elderberry', 'fig',
-		'gooseberry', 'grape', 'grapefruit', 'guava', 'honeydew', 'jackfruit', 'kiwi', 'kumquat',
-		'lemon', 'lime', 'loquat', 'lychee', 'mandarin', 'mango', 'melon', 'mulberry',
-		'nectarine', 'olive', 'orange', 'papaya', 'passionfruit', 'peach', 'pear', 'persimmon',
-		'pineapple', 'plum', 'pomegranate', 'quince', 'rambutan', 'raspberry', 'starfruit', 'strawberry',
-		'tangerine', 'watermelon', 'yuzu', 'tamarind', 'boysenberry', 'durian',
-	],
-	// Musical genres & terms
-	music: [
-		'adagio', 'allegro', 'ballad', 'bebop', 'blues', 'bolero', 'bossa', 'cadence',
-		'calypso', 'cantata', 'chord', 'concerto', 'crescendo', 'disco', 'dubstep', 'encore',
-		'etude', 'falsetto', 'fandango', 'forte', 'fugue', 'funk', 'groove', 'harmony',
-		'hymn', 'indie', 'jazz', 'jingle', 'keynote', 'largo', 'lyric', 'mambo',
-		'melody', 'minuet', 'motown', 'nocturne', 'octave', 'opera', 'overture', 'polka',
-		'prelude', 'quartet', 'reggae', 'requiem', 'riff', 'rumba', 'salsa', 'samba',
-		'sonata', 'soprano', 'staccato', 'swing', 'symphony', 'tempo',
-	],
-	// Gemstones & minerals
-	gems: [
-		'agate', 'alexandrite', 'amber', 'amethyst', 'aquamarine', 'azurite', 'beryl', 'calcite',
-		'carnelian', 'citrine', 'copper', 'crystal', 'diamond', 'emerald', 'feldspar', 'fluorite',
-		'garnet', 'granite', 'gypsum', 'heliodor', 'iolite', 'ivory', 'jacinth', 'jade',
-		'jasper', 'kunzite', 'labradorite', 'lapis', 'larimar', 'malachite', 'marble', 'moonstone',
-		'obsidian', 'onyx', 'opal', 'pearl', 'peridot', 'pyrite', 'quartz', 'rhodonite',
-		'ruby', 'rutile', 'sapphire', 'selenite', 'spinel', 'sunstone', 'tanzanite', 'topaz',
-		'tourmaline', 'turquoise', 'zircon', 'beryllium', 'corundum', 'diamond',
-	],
-	// Mythology characters
-	myths: [
-		'achilles', 'aphrodite', 'apollo', 'ares', 'artemis', 'athena', 'atlas', 'aurora',
-		'bacchus', 'calypso', 'cassandra', 'cerberus', 'clio', 'cronus', 'cupid', 'daphne',
-		'demeter', 'diana', 'echo', 'electra', 'europa', 'flora', 'fortuna', 'freya',
-		'gaia', 'hades', 'hecate', 'helios', 'hera', 'hermes', 'hyperion', 'icarus',
-		'iris', 'janus', 'juno', 'loki', 'luna', 'medusa', 'mercury', 'minerva',
-		'morpheus', 'nemesis', 'nike', 'nyx', 'odin', 'olympus', 'orpheus', 'pandora',
-		'pegasus', 'phoenix', 'prometheus', 'rhea', 'selene', 'thor',
-	],
-	// Ocean & sea life
-	ocean: [
-		'anchovy', 'anemone', 'barracuda', 'beluga', 'bonito', 'bream', 'clownfish', 'conch',
-		'coral', 'cuttlefish', 'dolphin', 'dorado', 'dugong', 'eel', 'flounder', 'grouper',
-		'guppy', 'halibut', 'hammerhead', 'herring', 'jellyfish', 'kelp', 'krill', 'lobster',
-		'mackerel', 'mahi', 'manta', 'marlin', 'mollusk', 'moray', 'narwhal', 'nautilus',
-		'octopus', 'orca', 'oyster', 'pelican', 'penguin', 'plankton', 'puffer', 'reef',
-		'sailfish', 'salmon', 'scallop', 'seahorse', 'seal', 'shark', 'shrimp', 'squid',
-		'starfish', 'stingray', 'sturgeon', 'swordfish', 'tuna', 'walrus',
-	],
-	// Spices & herbs
-	spices: [
-		'anise', 'basil', 'bay', 'bergamot', 'cardamom', 'cayenne', 'chamomile', 'chervil',
-		'chili', 'chive', 'cilantro', 'cinnamon', 'clove', 'comfrey', 'coriander', 'cumin',
-		'curry', 'dill', 'fennel', 'ginger', 'harissa', 'hyssop', 'jasmine', 'juniper',
-		'lavender', 'lemon', 'marjoram', 'mint', 'mustard', 'nutmeg', 'oregano', 'paprika',
-		'parsley', 'pepper', 'pimento', 'rosemary', 'saffron', 'sage', 'sesame', 'sorrel',
-		'sumac', 'tamarind', 'tarragon', 'thyme', 'turmeric', 'vanilla', 'verbena', 'wasabi',
-		'yarrow', 'zaatar', 'galangal', 'lemongrass', 'fenugreek', 'mace',
-	],
-	// Mountains & peaks
-	peaks: [
-		'aconcagua', 'alps', 'andes', 'annapurna', 'atlas', 'baker', 'blanc', 'cascade',
-		'chimborazo', 'cotopaxi', 'denali', 'dolomite', 'elbrus', 'eiger', 'everest', 'fuji',
-		'hood', 'k2', 'kangchenjunga', 'kazbek', 'kenya', 'kilimanjaro', 'kinabalu', 'lhotse',
-		'logan', 'makalu', 'manaslu', 'matterhorn', 'mckinley', 'meru', 'olympus', 'orizaba',
-		'parnassus', 'piton', 'rainier', 'rocky', 'rosa', 'rushmore', 'shasta', 'sierra',
-		'sinai', 'snowdon', 'summit', 'tahoma', 'teide', 'timpanogos', 'toubkal', 'ural',
-		'vinson', 'whitney', 'zugspitze', 'baldy', 'cenis', 'pikes',
-	],
-	// Dog breeds
-	dogs: [
-		'akita', 'basenji', 'beagle', 'boxer', 'briard', 'borzoi', 'bulldog', 'chihuahua',
-		'collie', 'corgi', 'dachshund', 'dalmatian', 'deerhound', 'doberman', 'greyhound', 'harrier',
-		'havanese', 'husky', 'keeshond', 'kelpie', 'komondor', 'labrador', 'leonberger', 'lhasa',
-		'lurcher', 'malamute', 'maltese', 'mastiff', 'mudi', 'newfie', 'otterhound', 'papillon',
-		'pekingese', 'pharaoh', 'pointer', 'pomeranian', 'poodle', 'puggle', 'retriever', 'ridgeback',
-		'rottweiler', 'saluki', 'samoyed', 'schipperke', 'schnauzer', 'setter', 'shiba', 'shihtzu',
-		'spaniel', 'terrier', 'vizsla', 'weimaraner', 'whippet', 'wolfhound',
-	],
-	// Dinosaurs
-	dinos: [
-		'allo', 'ankylo', 'apato', 'archaeo', 'baryonyx', 'brachio', 'bronco', 'carno',
-		'cera', 'coelo', 'compy', 'deinony', 'diloph', 'diplo', 'draco', 'edmonto',
-		'galli', 'gigano', 'hadro', 'herrera', 'iguano', 'kentro', 'lambeo', 'lepto',
-		'megalo', 'micro', 'mosa', 'nano', 'ornitho', 'oviraptor', 'pachy', 'parasaur',
-		'plated', 'plesio', 'proto', 'ptero', 'raptor', 'rex', 'sauro', 'spino',
-		'stego', 'styraco', 'sucho', 'thero', 'toro', 'trex', 'tricera', 'trodon',
-		'tyranno', 'utah', 'veloci', 'vulcano', 'xeno', 'zephyro',
-	],
-	// Coffee & tea drinks
-	cafe: [
-		'affogato', 'americano', 'assam', 'barista', 'bourbon', 'breve', 'cappuccino', 'caramel',
-		'chai', 'chemex', 'cold-brew', 'cortado', 'darjeeling', 'decaf', 'doppio', 'earl-grey',
-		'espresso', 'flat-white', 'frappe', 'galao', 'genmaicha', 'gyokuro', 'hojicha', 'horchata',
-		'irish', 'jasmine', 'kopi', 'latte', 'lungo', 'macchiato', 'matcha', 'mazagran',
-		'mocha', 'nitro', 'oolong', 'piccolo', 'pourover', 'puerh', 'ristretto', 'roast',
-		'robusta', 'rooibos', 'sencha', 'siphon', 'single-origin', 'steamer', 'toddy', 'turkish',
-		'turmeric', 'vanilla-latte', 'vienna', 'yerba', 'yuanyang', 'cascara',
-	],
-};
-
-const SCHEME_NAMES = Object.keys(WORKTREE_NAMING_SCHEMES);
-const REPO_SCHEME_STORAGE_KEY = 'worktreeNamingSchemes';
-
-function getSchemeForRepo(repoPath: string): string {
-	let assignments: Record<string, string> = {};
-	try {
-		const stored = localStorage.getItem(REPO_SCHEME_STORAGE_KEY);
-		if (stored) {
-			assignments = JSON.parse(stored);
-		}
-	} catch {
-		// Corrupted storage, start fresh
-	}
-
-	// Already assigned?
-	if (assignments[repoPath] && WORKTREE_NAMING_SCHEMES[assignments[repoPath]]) {
-		return assignments[repoPath];
-	}
-
-	// Pick a scheme not yet used by another repo
-	const usedSchemes = new Set(Object.values(assignments));
-	const available = SCHEME_NAMES.filter(s => !usedSchemes.has(s));
-	const scheme = available.length > 0
-		? available[Math.floor(Math.random() * available.length)]
-		: SCHEME_NAMES[Math.floor(Math.random() * SCHEME_NAMES.length)]; // all used, allow reuse
-
-	assignments[repoPath] = scheme;
-	try {
-		localStorage.setItem(REPO_SCHEME_STORAGE_KEY, JSON.stringify(assignments));
-	} catch {
-		// Storage full or unavailable
-	}
-
-	return scheme;
-}
-
-function generateWorktreeName(existingBranches: Set<string>, repoPath: string): string {
-	const scheme = getSchemeForRepo(repoPath);
-	const words = WORKTREE_NAMING_SCHEMES[scheme];
-
-	const maxAttempts = words.length;
-	for (let i = 0; i < maxAttempts; i++) {
-		const word = words[Math.floor(Math.random() * words.length)];
-		if (!existingBranches.has(word)) {
-			return word;
-		}
-	}
-	// Fallback: all names used, generate with random suffix
-	const word = words[Math.floor(Math.random() * words.length)];
-	return `${word}-${Math.floor(Math.random() * 1000)}`;
-}
 
 const MAX_IFRAMES = 5;
 
@@ -887,7 +710,7 @@ export class ShellApplication {
 		});
 	}
 
-	private _showQuickInput(options: { label: string; placeholder: string }): Promise<string | null> {
+	private _showQuickInput(options: { label: string; placeholder: string; initialValue?: string }): Promise<string | null> {
 		return new Promise<string | null>(resolve => {
 			const overlay = document.createElement('div');
 			overlay.className = 'quick-input-overlay';
@@ -904,6 +727,9 @@ export class ShellApplication {
 			input.type = 'text';
 			input.placeholder = options.placeholder;
 			input.spellcheck = false;
+			if (options.initialValue) {
+				input.value = options.initialValue;
+			}
 
 			widget.appendChild(label);
 			widget.appendChild(input);
@@ -930,6 +756,7 @@ export class ShellApplication {
 
 			document.body.appendChild(overlay);
 			input.focus();
+			input.select();
 		});
 	}
 
@@ -1072,7 +899,7 @@ export class ShellApplication {
 			addWtBtn.title = 'Add worktree';
 			addWtBtn.addEventListener('click', e => {
 				e.stopPropagation();
-				this._addWorktree(repoUri);
+				this._addWorktree(repoUri, header);
 			});
 
 			const removeBtn = document.createElement('button');
@@ -1160,23 +987,91 @@ export class ShellApplication {
 		}
 	}
 
-	private async _addWorktree(repoUri: string): Promise<void> {
+	private _addWorktree(repoUri: string, anchorEl: HTMLElement): void {
 		this._dismissActivePopup();
 
 		const repoPath = repoUri.replace(/^file:\/\//, '');
 
-		// Collect existing branch names to avoid collisions
-		const existingBranches = new Set<string>();
-		try {
-			const result = await this.backend.listBranches(repoPath);
-			for (const b of result.branches) {
-				existingBranches.add(b);
-			}
-		} catch {
-			// Best-effort; proceed even if branch listing fails
+		const menu = document.createElement('div');
+		menu.className = 'add-repo-menu';
+
+		const menuItems = [
+			{ label: 'New Branch...', action: () => { dismiss(); this._addWorktreeNewBranch(repoPath); } },
+			{ label: 'Existing Branch...', action: () => { dismiss(); this._addWorktreeExistingBranch(repoPath); } }
+		];
+
+		let focusedIndex = -1;
+
+		const updateFocus = () => {
+			menu.querySelectorAll('.add-repo-menu-item').forEach((el, i) => {
+				el.classList.toggle('focused', i === focusedIndex);
+			});
+		};
+
+		for (const menuItem of menuItems) {
+			const el = document.createElement('div');
+			el.className = 'add-repo-menu-item';
+			el.textContent = menuItem.label;
+			el.addEventListener('click', menuItem.action);
+			menu.appendChild(el);
 		}
 
-		const branchName = generateWorktreeName(existingBranches, repoPath);
+		const dismiss = () => {
+			menu.remove();
+			document.removeEventListener('mousedown', outsideClickHandler);
+			document.removeEventListener('keydown', keyHandler);
+			this._activePopupDismiss = null;
+		};
+
+		const outsideClickHandler = (e: MouseEvent) => {
+			if (!menu.contains(e.target as Node)) {
+				dismiss();
+			}
+		};
+
+		const keyHandler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				dismiss();
+			} else if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				focusedIndex = Math.min(focusedIndex + 1, menuItems.length - 1);
+				updateFocus();
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				focusedIndex = Math.max(focusedIndex - 1, 0);
+				updateFocus();
+			} else if (e.key === 'Enter' && focusedIndex >= 0) {
+				e.preventDefault();
+				menuItems[focusedIndex].action();
+			}
+		};
+
+		setTimeout(() => {
+			document.addEventListener('mousedown', outsideClickHandler);
+		}, 0);
+		document.addEventListener('keydown', keyHandler);
+
+		anchorEl.style.position = 'relative';
+		menu.style.top = '100%';
+		menu.style.left = '0';
+		menu.style.right = '0';
+		menu.style.bottom = 'auto';
+		menu.style.marginTop = '2px';
+		menu.style.marginBottom = '0';
+		anchorEl.appendChild(menu);
+
+		this._activePopupDismiss = dismiss;
+	}
+
+	private async _addWorktreeNewBranch(repoPath: string): Promise<void> {
+		const branchName = await this._showQuickInput({
+			label: 'Branch name (also used as directory name)',
+			placeholder: 'feature/my-branch',
+		});
+		if (!branchName) {
+			return;
+		}
 
 		try {
 			const result = await this.backend.addWorktree(repoPath, branchName, true);
@@ -1189,6 +1084,132 @@ export class ShellApplication {
 		} catch (err) {
 			alert(`Failed to add worktree: ${err}`);
 		}
+	}
+
+	private async _addWorktreeExistingBranch(repoPath: string): Promise<void> {
+		let branches: string[];
+		try {
+			const result = await this.backend.listBranches(repoPath);
+			branches = result.branches ?? [];
+		} catch (err) {
+			alert(`Failed to fetch branches: ${err}`);
+			return;
+		}
+
+		if (branches.length === 0) {
+			alert('No branches found.');
+			return;
+		}
+
+		const selected = await this._showBranchPicker(branches);
+		if (!selected) {
+			return;
+		}
+
+		try {
+			const result = await this.backend.addWorktree(repoPath, selected, false);
+			if (result.success) {
+				await this.refreshWorktrees();
+				this.switchToWorktree(result.path!);
+			} else {
+				alert(`Failed to add worktree: ${result.error}`);
+			}
+		} catch (err) {
+			alert(`Failed to add worktree: ${err}`);
+		}
+	}
+
+	private _showBranchPicker(branches: string[]): Promise<string | null> {
+		return new Promise<string | null>(resolve => {
+			const overlay = document.createElement('div');
+			overlay.className = 'quick-input-overlay';
+
+			const widget = document.createElement('div');
+			widget.className = 'quick-input-widget branch-picker';
+
+			const label = document.createElement('div');
+			label.className = 'quick-input-label';
+			label.textContent = 'Select a branch';
+
+			const filterInput = document.createElement('input');
+			filterInput.className = 'quick-input-field';
+			filterInput.type = 'text';
+			filterInput.placeholder = 'Filter branches...';
+			filterInput.spellcheck = false;
+
+			const list = document.createElement('div');
+			list.className = 'branch-picker-list';
+
+			widget.appendChild(label);
+			widget.appendChild(filterInput);
+			widget.appendChild(list);
+			overlay.appendChild(widget);
+
+			let focusedIndex = -1;
+			let filtered = branches.slice();
+
+			const dismiss = (result: string | null) => {
+				overlay.remove();
+				resolve(result);
+			};
+
+			const renderList = () => {
+				list.innerHTML = '';
+				focusedIndex = filtered.length > 0 ? 0 : -1;
+				for (let i = 0; i < filtered.length; i++) {
+					const el = document.createElement('div');
+					el.className = 'branch-picker-item';
+					if (i === focusedIndex) {
+						el.classList.add('focused');
+					}
+					el.textContent = filtered[i];
+					el.addEventListener('click', () => dismiss(filtered[i]));
+					list.appendChild(el);
+				}
+			};
+
+			const updateFocus = () => {
+				list.querySelectorAll('.branch-picker-item').forEach((el, i) => {
+					el.classList.toggle('focused', i === focusedIndex);
+					if (i === focusedIndex) {
+						el.scrollIntoView({ block: 'nearest' });
+					}
+				});
+			};
+
+			filterInput.addEventListener('input', () => {
+				const q = filterInput.value.toLowerCase();
+				filtered = branches.filter(b => b.toLowerCase().includes(q));
+				renderList();
+			});
+
+			filterInput.addEventListener('keydown', e => {
+				if (e.key === 'Escape') {
+					dismiss(null);
+				} else if (e.key === 'ArrowDown') {
+					e.preventDefault();
+					focusedIndex = Math.min(focusedIndex + 1, filtered.length - 1);
+					updateFocus();
+				} else if (e.key === 'ArrowUp') {
+					e.preventDefault();
+					focusedIndex = Math.max(focusedIndex - 1, 0);
+					updateFocus();
+				} else if (e.key === 'Enter' && focusedIndex >= 0) {
+					e.preventDefault();
+					dismiss(filtered[focusedIndex]);
+				}
+			});
+
+			overlay.addEventListener('mousedown', e => {
+				if (e.target === overlay) {
+					dismiss(null);
+				}
+			});
+
+			document.body.appendChild(overlay);
+			filterInput.focus();
+			renderList();
+		});
 	}
 
 	private _startInlineRename(branchSpan: HTMLSpanElement, currentName: string, repoUri: string, wt: IWorktreeInfo): void {
