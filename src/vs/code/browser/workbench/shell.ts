@@ -1065,10 +1065,10 @@ export class ShellApplication {
 	}
 
 	private async _addWorktreeNewBranch(repoPath: string): Promise<void> {
-		const branchName = await this._showQuickInput({
+		const branchName = await this._withOverlay(() => this._showQuickInput({
 			label: 'Branch name (also used as directory name)',
 			placeholder: 'feature/my-branch',
-		});
+		}));
 		if (!branchName) {
 			return;
 		}
@@ -1101,7 +1101,7 @@ export class ShellApplication {
 			return;
 		}
 
-		const selected = await this._showBranchPicker(branches);
+		const selected = await this._withOverlay(() => this._showBranchPicker(branches));
 		if (!selected) {
 			return;
 		}
