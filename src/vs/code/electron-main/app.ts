@@ -1325,6 +1325,20 @@ export class CodeApplication extends Disposable {
 			return windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
 		}
 
+		// Shell mode: open a single empty window — the shell UI manages
+		// worktree views itself, so skip session restore which would open
+		// one BrowserWindow per previously-active worktree folder.
+		if (process.env['SHELL_MODE'] !== '0') {
+			return windowsMainService.open({
+				context,
+				cli: args,
+				forceNewWindow: true,
+				forceEmpty: true,
+				noRecentEntry: true,
+				initialStartup: true
+			});
+		}
+
 		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
 
