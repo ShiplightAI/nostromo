@@ -7,24 +7,22 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import type { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalInputNotificationSettingId } from '../common/terminalInputNotificationConfiguration.js';
 import { IShellNotificationService } from '../../../../services/shell/browser/shellNotificationService.js';
 
 /**
- * Detects when a command finishes in a background workbench terminal and
- * sends a notification to the shell sidebar so a bell badge is shown next
- * to the worktree entry — indicating the terminal is waiting for user input.
+ * Detects when a terminal in a background workbench has new output followed
+ * by silence, and sends a notification to the shell sidebar so a bell badge
+ * is shown next to the worktree entry.
  *
  * Rules:
  * 1. Foreground/background status is tracked via shell.activeView messages
  *    (web) and vscode:shellActiveView IPC (Electron).
- * 2. A foreground workbench never sends notifications.
- * 3. Notifications fire when a command completes in the background, meaning
- *    the terminal is now at the shell prompt waiting for user input.
- * 4. Notifications are only dismissed when the user switches to the worktree.
+ * 2. A foreground workbench never sends notifications and clears any active one.
+ * 3. After going background, exactly one notification is allowed, triggered by
+ *    new terminal output followed by silence (no output for N seconds).
  */
 class TerminalInputNotificationContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.inputNotification';
@@ -34,7 +32,9 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 	}
 
 	private _isBackground = false;
+	private _hasNewOutput = false; // new terminal output since going background
 	private _notified = false; // already sent one notification since going background
+	private _silenceTimer: ReturnType<typeof setTimeout> | undefined;
 	private _notificationActive = false;
 
 	constructor(
@@ -46,40 +46,35 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		// Detect substantial output: line feeds indicate real content being
+		// written (not just mode toggles like CSI ?2026h/l).
+		this._register(xterm.raw.onLineFeed(() => {
+			this._onTerminalOutput();
+		}));
+
+		// Title changes also indicate output activity.
+		this._register(xterm.raw.onTitleChange(() => {
+			this._onTerminalOutput();
+		}));
+
 		// User input — clear any active notification since the user is
 		// interacting with this terminal directly.
 		this._register(xterm.raw.onData(() => {
+			this._clearSilenceTimer();
 			this._clearNotification();
 		}));
-
-		// Listen for command completion via shell integration.
-		const instance = this._ctx.instance;
-		this._register(instance.capabilities.onDidAddCapability(e => {
-			if (e.id === TerminalCapability.CommandDetection) {
-				const cmdDetection = instance.capabilities.get(TerminalCapability.CommandDetection)!;
-				this._register(cmdDetection.onCommandFinished(() => {
-					this._onCommandFinished();
-				}));
-			}
-		}));
-
-		// If command detection is already available, register immediately.
-		const cmdDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-		if (cmdDetection) {
-			this._register(cmdDetection.onCommandFinished(() => {
-				this._onCommandFinished();
-			}));
-		}
 
 		// Foreground/background tracking.
 		const onActivated = () => {
 			this._isBackground = false;
+			this._hasNewOutput = false;
 			this._notified = false;
-			// Do NOT clear notification here — the shell dismisses the badge
-			// only when the user switches to this worktree via switchToWorktree().
+			this._clearSilenceTimer();
+			this._clearNotification();
 		};
 		const onDeactivated = () => {
 			this._isBackground = true;
+			this._hasNewOutput = false;
 			this._notified = false;
 		};
 
@@ -114,8 +109,37 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 		});
 	}
 
-	private _onCommandFinished(): void {
-		if (!this._isEnabled() || !this._isBackground || this._notified) {
+	private _onTerminalOutput(): void {
+		if (!this._isBackground) {
+			return;
+		}
+		this._hasNewOutput = true;
+		// New output while in background — reset the silence timer.
+		// Clear any active notification since more output is coming.
+		this._clearNotification();
+		this._resetSilenceTimer();
+	}
+
+	private _resetSilenceTimer(): void {
+		this._clearSilenceTimer();
+		if (!this._isEnabled() || !this._isBackground || !this._hasNewOutput || this._notified) {
+			return;
+		}
+		const silenceMs = this._configurationService.getValue<number>(TerminalInputNotificationSettingId.InputNotificationSilenceMs) ?? 5000;
+		this._silenceTimer = setTimeout(() => {
+			this._onSilenceDetected();
+		}, silenceMs);
+	}
+
+	private _clearSilenceTimer(): void {
+		if (this._silenceTimer !== undefined) {
+			clearTimeout(this._silenceTimer);
+			this._silenceTimer = undefined;
+		}
+	}
+
+	private _onSilenceDetected(): void {
+		if (!this._isEnabled() || !this._isBackground || !this._hasNewOutput || this._notified) {
 			return;
 		}
 
@@ -143,6 +167,7 @@ class TerminalInputNotificationContribution extends Disposable implements ITermi
 	}
 
 	override dispose(): void {
+		this._clearSilenceTimer();
 		this._clearNotification();
 		super.dispose();
 	}
