@@ -42,6 +42,7 @@ export interface IShellSettings {
 	trackedRepositories: string[];
 	lastBrowsePath: string;
 	lastActiveWorktree?: string;
+	sidebarCollapsed?: boolean;
 }
 
 export interface IShellBackend {
@@ -227,9 +228,11 @@ export class ShellApplication {
 	private readonly backend: IShellBackend;
 	private readonly repoListEl: HTMLElement;
 	private readonly iframeContainer: HTMLElement;
+	private readonly sidebarEl: HTMLElement;
 	private readonly iframes = new Map<string, HTMLIFrameElement>();
 	private readonly iframeLRU: string[] = [];
 	private activeWorktreePath: string | null = null;
+	private sidebarCollapsed = false;
 	private trackedRepos: string[] = [];
 	private repoWorktrees = new Map<string, IWorktreeInfo[]>();
 	private _activePopupDismiss: (() => void) | null = null;
@@ -241,6 +244,7 @@ export class ShellApplication {
 	constructor(backend?: IShellBackend) {
 		this.repoListEl = document.getElementById('repo-list')!;
 		this.iframeContainer = document.getElementById('iframe-container')!;
+		this.sidebarEl = document.getElementById('shell-sidebar')!;
 
 		if (backend) {
 			this.backend = backend;
@@ -291,6 +295,8 @@ export class ShellApplication {
 			const settings = await this.backend.loadSettings();
 			this.trackedRepos = settings.trackedRepositories ?? [];
 			this.lastBrowsePath = settings.lastBrowsePath ?? '';
+			this.sidebarCollapsed = settings.sidebarCollapsed ?? false;
+			this._applySidebarCollapsed();
 			if (this.trackedRepos.length > 0) {
 				await this.refreshWorktrees();
 				// Auto-activate if no worktree is active from URL param
@@ -360,6 +366,10 @@ export class ShellApplication {
 
 		document.getElementById('refresh-btn')?.addEventListener('click', () => {
 			this.refreshWorktrees();
+		});
+
+		document.querySelector('.sidebar-toggle')?.addEventListener('click', () => {
+			this._setSidebarCollapsed(!this.sidebarCollapsed);
 		});
 
 		window.addEventListener('message', event => {
@@ -848,7 +858,8 @@ export class ShellApplication {
 		this.backend.saveSettings({
 			trackedRepositories: this.trackedRepos,
 			lastBrowsePath: this.lastBrowsePath,
-			lastActiveWorktree: this.activeWorktreePath ?? undefined
+			lastActiveWorktree: this.activeWorktreePath ?? undefined,
+			sidebarCollapsed: this.sidebarCollapsed
 		});
 	}
 
@@ -868,6 +879,21 @@ export class ShellApplication {
 		}
 
 		this._renderRepoList();
+	}
+
+	private _applySidebarCollapsed(): void {
+		this.sidebarEl.classList.toggle('collapsed', this.sidebarCollapsed);
+		const toggle = this.sidebarEl.querySelector('.sidebar-toggle');
+		if (toggle) {
+			toggle.textContent = this.sidebarCollapsed ? '\u25B6' : '\u25C0';
+			toggle.setAttribute('title', this.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+		}
+	}
+
+	private _setSidebarCollapsed(collapsed: boolean): void {
+		this.sidebarCollapsed = collapsed;
+		this._applySidebarCollapsed();
+		this._saveSettings();
 	}
 
 	private _renderRepoList(): void {
@@ -937,7 +963,9 @@ export class ShellApplication {
 				branchSpan.className = 'wt-branch';
 				const branchName = wt.branch ? wt.branch.replace('refs/heads/', '') : wt.path.split('/').pop() ?? wt.path;
 				branchSpan.textContent = branchName;
-				branchSpan.title = wt.path;
+				branchSpan.dataset.path = wt.path;
+				const dirName = wt.path.split('/').pop() ?? wt.path;
+				item.title = branchName + (branchName !== dirName ? '\n' + dirName : '') + '\n' + wt.path;
 				item.appendChild(branchSpan);
 
 				// Double-click to rename non-main worktree branches
@@ -985,6 +1013,7 @@ export class ShellApplication {
 			section.appendChild(wtList);
 			this.repoListEl.appendChild(section);
 		}
+
 	}
 
 	private _addWorktree(repoUri: string, anchorEl: HTMLElement): void {
@@ -1320,8 +1349,8 @@ export class ShellApplication {
 	private _updateBadges(worktreePath: string): void {
 		const items = this.repoListEl.querySelectorAll('.worktree-item');
 		for (const item of items) {
-			const branchEl = item.querySelector('.wt-branch');
-			if (!branchEl || branchEl.getAttribute('title') !== worktreePath) {
+			const branchEl = item.querySelector('.wt-branch') as HTMLElement | null;
+			if (!branchEl || branchEl.dataset.path !== worktreePath) {
 				continue;
 			}
 			// Remove existing badge
@@ -1395,11 +1424,12 @@ export class ShellApplication {
 			el.classList.remove('active');
 		});
 		this.repoListEl.querySelectorAll('.worktree-item').forEach(el => {
-			const branchEl = el.querySelector('.wt-branch');
-			if (branchEl && branchEl.getAttribute('title') === worktreePath) {
+			const branchEl = el.querySelector('.wt-branch') as HTMLElement | null;
+			if (branchEl && branchEl.dataset.path === worktreePath) {
 				el.classList.add('active');
 			}
 		});
+
 	}
 }
 

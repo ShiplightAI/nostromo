@@ -129,7 +129,8 @@ export class WebClientServer {
 			}
 			if (pathname === '/') {
 				// Redirect bare / (no ?folder= or ?workspace=) to /worktrees
-				if (!parsedUrl.query['folder'] && !parsedUrl.query['workspace']) {
+				// Skip redirect for embedded workbench iframes (?embedded=true)
+				if (!parsedUrl.query['folder'] && !parsedUrl.query['workspace'] && !parsedUrl.query['embedded']) {
 					const basePath = (req.headers['x-forwarded-prefix'] as string) || this._basePath;
 					const shellPath = posix.join(basePath, this._productPath, '/worktrees');
 					const queryString = parsedUrl.search || '';
@@ -529,7 +530,7 @@ export class WebClientServer {
 
 		const staticRoute = posix.join(basePath, this._productPath, STATIC_PATH);
 
-		const filePath = FileAccess.asFileUri(`vs/code/browser/workbench/shell${this._environmentService.isBuilt ? '' : '-dev'}.html`).fsPath;
+		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/shell.html').fsPath;
 
 		const values: { [key: string]: string } = {
 			SHELL_CONFIGURATION: JSON.stringify(shellConfiguration).replace(/"/g, '&quot;'),
