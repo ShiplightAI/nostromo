@@ -150,6 +150,15 @@ export class AgentTerminalViewPane extends ViewPane {
 			});
 		}
 
+		actions.push({
+			id: 'addAgent.terminal',
+			label: 'Terminal',
+			tooltip: '',
+			class: undefined,
+			enabled: true,
+			run: () => this._addPlainTerminalTab(),
+		});
+
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
@@ -236,6 +245,95 @@ export class AgentTerminalViewPane extends ViewPane {
 			FRONTEND_BASE_URL: `http://localhost:${3000 + offset}`,
 			NEXT_PUBLIC_SITE_URL: `http://localhost:${3000 + offset}`,
 		};
+	}
+
+	private async _addPlainTerminalTab(): Promise<void> {
+		if (!this._tabBar || !this._terminalContainer) {
+			return;
+		}
+
+		const name = 'Terminal';
+		const id = `tab-${this._nextTabId++}`;
+		const store = new DisposableStore();
+
+		// Create tab element (insert before the "+" button)
+		const tabElement = document.createElement('div');
+		tabElement.className = 'agent-terminal-tab';
+		tabElement.dataset.tabId = id;
+		this._tabBar.insertBefore(tabElement, this._addButton ?? null);
+
+		// Label
+		const labelElement = append(tabElement, $('span.tab-label'));
+		labelElement.textContent = name;
+
+		// Close button
+		const closeButton = append(tabElement, $('span.close-button'));
+		const closeIcon = append(closeButton, $(ThemeIcon.asCSSSelector(Codicon.close)));
+		closeIcon.style.pointerEvents = 'none';
+
+		// Per-tab terminal container
+		const contentContainer = append(this._terminalContainer, $('.agent-terminal-instance.terminal-overflow-guard'));
+
+		// Create terminal — no command is sent, just a plain shell
+		let terminalInstance: ITerminalInstance;
+		try {
+			terminalInstance = await this._terminalService.createTerminal({
+				config: {
+					name,
+					isFeatureTerminal: true,
+					hideFromUser: true,
+					env: this._getPortEnv(),
+				},
+				location: TerminalLocation.Panel,
+			});
+
+			await terminalInstance.xtermReadyPromise;
+			terminalInstance.attachToElement(contentContainer);
+		} catch (err) {
+			tabElement.remove();
+			contentContainer.remove();
+			store.dispose();
+			return;
+		}
+
+		const tab: IAgentTab = {
+			id,
+			name,
+			kind: 'terminal',
+			terminalInstance,
+			tabElement,
+			labelElement,
+			contentContainer,
+		};
+		this._tabs.push(tab);
+
+		// Click to activate
+		store.add(addDisposableListener(tabElement, EventType.CLICK, e => {
+			if (!(e.target as HTMLElement).classList.contains('close-button') &&
+				!(e.target as HTMLElement).closest('.close-button')) {
+				this._activateTab(id);
+			}
+		}));
+
+		// Double-click to rename
+		store.add(addDisposableListener(labelElement, EventType.DBLCLICK, e => {
+			e.stopPropagation();
+			this._startRename(tab);
+		}));
+
+		// Close button
+		store.add(addDisposableListener(closeButton, EventType.CLICK, e => {
+			e.stopPropagation();
+			this._closeTab(id);
+		}));
+
+		// Terminal disposed externally
+		store.add(terminalInstance.onDisposed(() => {
+			this._removeTabFromList(id);
+		}));
+
+		this._tabDisposables.set(id, store);
+		this._activateTab(id);
 	}
 
 	private async _addTerminalTab(command: string, name: string): Promise<void> {
