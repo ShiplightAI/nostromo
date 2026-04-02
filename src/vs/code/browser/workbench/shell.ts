@@ -40,6 +40,7 @@ export interface IShellNotification {
  */
 export interface IShellSettings {
 	trackedRepositories: string[];
+	hiddenRepositories?: string[];
 	lastBrowsePath: string;
 	lastActiveWorktree?: string;
 	sidebarCollapsed?: boolean;
@@ -84,183 +85,6 @@ interface IShellConfiguration {
 	};
 }
 
-// --- Worktree naming schemes ---
-// Each repo is assigned a random scheme. Within that scheme, names are picked randomly.
-
-const WORKTREE_NAMING_SCHEMES: Record<string, string[]> = {
-	// Celestial bodies & space objects
-	cosmos: [
-		'andromeda', 'apollo', 'ariel', 'asteroid', 'callisto', 'cassini', 'celeste', 'centauri',
-		'ceres', 'comet', 'cosmos', 'deimos', 'eclipse', 'europa', 'galaxy', 'ganymede',
-		'halley', 'hubble', 'io', 'juno', 'kepler', 'luna', 'mars', 'meteor',
-		'miranda', 'nebula', 'neptune', 'nova', 'oberon', 'orbit', 'orion', 'phoebe',
-		'pluto', 'pulsar', 'quasar', 'saturn', 'sirius', 'solstice', 'stellar', 'supernova',
-		'titan', 'triton', 'umbra', 'vega', 'venus', 'vesta', 'voyager', 'zenith',
-		'zodiac', 'aurora', 'equinox', 'parsec', 'photon', 'corona',
-	],
-	// World cities
-	cities: [
-		'amsterdam', 'athens', 'austin', 'bali', 'barcelona', 'berlin', 'bogota', 'boston',
-		'cairo', 'capetown', 'chicago', 'copenhagen', 'denver', 'dublin', 'edinburgh', 'florence',
-		'geneva', 'havana', 'helsinki', 'hongkong', 'istanbul', 'jakarta', 'kyoto', 'lagos',
-		'lima', 'lisbon', 'london', 'madrid', 'manila', 'marrakech', 'melbourne', 'miami',
-		'milan', 'montreal', 'mumbai', 'nairobi', 'nashville', 'oslo', 'paris', 'portland',
-		'prague', 'rio', 'rome', 'santiago', 'seattle', 'seoul', 'shanghai', 'singapore',
-		'stockholm', 'sydney', 'taipei', 'tokyo', 'toronto', 'vienna',
-	],
-	// Fruits & berries
-	fruits: [
-		'apple', 'apricot', 'avocado', 'banana', 'blackberry', 'blueberry', 'cantaloupe', 'cherry',
-		'clementine', 'coconut', 'cranberry', 'currant', 'date', 'dragonfruit', 'elderberry', 'fig',
-		'gooseberry', 'grape', 'grapefruit', 'guava', 'honeydew', 'jackfruit', 'kiwi', 'kumquat',
-		'lemon', 'lime', 'loquat', 'lychee', 'mandarin', 'mango', 'melon', 'mulberry',
-		'nectarine', 'olive', 'orange', 'papaya', 'passionfruit', 'peach', 'pear', 'persimmon',
-		'pineapple', 'plum', 'pomegranate', 'quince', 'rambutan', 'raspberry', 'starfruit', 'strawberry',
-		'tangerine', 'watermelon', 'yuzu', 'tamarind', 'boysenberry', 'durian',
-	],
-	// Musical genres & terms
-	music: [
-		'adagio', 'allegro', 'ballad', 'bebop', 'blues', 'bolero', 'bossa', 'cadence',
-		'calypso', 'cantata', 'chord', 'concerto', 'crescendo', 'disco', 'dubstep', 'encore',
-		'etude', 'falsetto', 'fandango', 'forte', 'fugue', 'funk', 'groove', 'harmony',
-		'hymn', 'indie', 'jazz', 'jingle', 'keynote', 'largo', 'lyric', 'mambo',
-		'melody', 'minuet', 'motown', 'nocturne', 'octave', 'opera', 'overture', 'polka',
-		'prelude', 'quartet', 'reggae', 'requiem', 'riff', 'rumba', 'salsa', 'samba',
-		'sonata', 'soprano', 'staccato', 'swing', 'symphony', 'tempo',
-	],
-	// Gemstones & minerals
-	gems: [
-		'agate', 'alexandrite', 'amber', 'amethyst', 'aquamarine', 'azurite', 'beryl', 'calcite',
-		'carnelian', 'citrine', 'copper', 'crystal', 'diamond', 'emerald', 'feldspar', 'fluorite',
-		'garnet', 'granite', 'gypsum', 'heliodor', 'iolite', 'ivory', 'jacinth', 'jade',
-		'jasper', 'kunzite', 'labradorite', 'lapis', 'larimar', 'malachite', 'marble', 'moonstone',
-		'obsidian', 'onyx', 'opal', 'pearl', 'peridot', 'pyrite', 'quartz', 'rhodonite',
-		'ruby', 'rutile', 'sapphire', 'selenite', 'spinel', 'sunstone', 'tanzanite', 'topaz',
-		'tourmaline', 'turquoise', 'zircon', 'beryllium', 'corundum', 'diamond',
-	],
-	// Mythology characters
-	myths: [
-		'achilles', 'aphrodite', 'apollo', 'ares', 'artemis', 'athena', 'atlas', 'aurora',
-		'bacchus', 'calypso', 'cassandra', 'cerberus', 'clio', 'cronus', 'cupid', 'daphne',
-		'demeter', 'diana', 'echo', 'electra', 'europa', 'flora', 'fortuna', 'freya',
-		'gaia', 'hades', 'hecate', 'helios', 'hera', 'hermes', 'hyperion', 'icarus',
-		'iris', 'janus', 'juno', 'loki', 'luna', 'medusa', 'mercury', 'minerva',
-		'morpheus', 'nemesis', 'nike', 'nyx', 'odin', 'olympus', 'orpheus', 'pandora',
-		'pegasus', 'phoenix', 'prometheus', 'rhea', 'selene', 'thor',
-	],
-	// Ocean & sea life
-	ocean: [
-		'anchovy', 'anemone', 'barracuda', 'beluga', 'bonito', 'bream', 'clownfish', 'conch',
-		'coral', 'cuttlefish', 'dolphin', 'dorado', 'dugong', 'eel', 'flounder', 'grouper',
-		'guppy', 'halibut', 'hammerhead', 'herring', 'jellyfish', 'kelp', 'krill', 'lobster',
-		'mackerel', 'mahi', 'manta', 'marlin', 'mollusk', 'moray', 'narwhal', 'nautilus',
-		'octopus', 'orca', 'oyster', 'pelican', 'penguin', 'plankton', 'puffer', 'reef',
-		'sailfish', 'salmon', 'scallop', 'seahorse', 'seal', 'shark', 'shrimp', 'squid',
-		'starfish', 'stingray', 'sturgeon', 'swordfish', 'tuna', 'walrus',
-	],
-	// Spices & herbs
-	spices: [
-		'anise', 'basil', 'bay', 'bergamot', 'cardamom', 'cayenne', 'chamomile', 'chervil',
-		'chili', 'chive', 'cilantro', 'cinnamon', 'clove', 'comfrey', 'coriander', 'cumin',
-		'curry', 'dill', 'fennel', 'ginger', 'harissa', 'hyssop', 'jasmine', 'juniper',
-		'lavender', 'lemon', 'marjoram', 'mint', 'mustard', 'nutmeg', 'oregano', 'paprika',
-		'parsley', 'pepper', 'pimento', 'rosemary', 'saffron', 'sage', 'sesame', 'sorrel',
-		'sumac', 'tamarind', 'tarragon', 'thyme', 'turmeric', 'vanilla', 'verbena', 'wasabi',
-		'yarrow', 'zaatar', 'galangal', 'lemongrass', 'fenugreek', 'mace',
-	],
-	// Mountains & peaks
-	peaks: [
-		'aconcagua', 'alps', 'andes', 'annapurna', 'atlas', 'baker', 'blanc', 'cascade',
-		'chimborazo', 'cotopaxi', 'denali', 'dolomite', 'elbrus', 'eiger', 'everest', 'fuji',
-		'hood', 'k2', 'kangchenjunga', 'kazbek', 'kenya', 'kilimanjaro', 'kinabalu', 'lhotse',
-		'logan', 'makalu', 'manaslu', 'matterhorn', 'mckinley', 'meru', 'olympus', 'orizaba',
-		'parnassus', 'piton', 'rainier', 'rocky', 'rosa', 'rushmore', 'shasta', 'sierra',
-		'sinai', 'snowdon', 'summit', 'tahoma', 'teide', 'timpanogos', 'toubkal', 'ural',
-		'vinson', 'whitney', 'zugspitze', 'baldy', 'cenis', 'pikes',
-	],
-	// Dog breeds
-	dogs: [
-		'akita', 'basenji', 'beagle', 'boxer', 'briard', 'borzoi', 'bulldog', 'chihuahua',
-		'collie', 'corgi', 'dachshund', 'dalmatian', 'deerhound', 'doberman', 'greyhound', 'harrier',
-		'havanese', 'husky', 'keeshond', 'kelpie', 'komondor', 'labrador', 'leonberger', 'lhasa',
-		'lurcher', 'malamute', 'maltese', 'mastiff', 'mudi', 'newfie', 'otterhound', 'papillon',
-		'pekingese', 'pharaoh', 'pointer', 'pomeranian', 'poodle', 'puggle', 'retriever', 'ridgeback',
-		'rottweiler', 'saluki', 'samoyed', 'schipperke', 'schnauzer', 'setter', 'shiba', 'shihtzu',
-		'spaniel', 'terrier', 'vizsla', 'weimaraner', 'whippet', 'wolfhound',
-	],
-	// Dinosaurs
-	dinos: [
-		'allo', 'ankylo', 'apato', 'archaeo', 'baryonyx', 'brachio', 'bronco', 'carno',
-		'cera', 'coelo', 'compy', 'deinony', 'diloph', 'diplo', 'draco', 'edmonto',
-		'galli', 'gigano', 'hadro', 'herrera', 'iguano', 'kentro', 'lambeo', 'lepto',
-		'megalo', 'micro', 'mosa', 'nano', 'ornitho', 'oviraptor', 'pachy', 'parasaur',
-		'plated', 'plesio', 'proto', 'ptero', 'raptor', 'rex', 'sauro', 'spino',
-		'stego', 'styraco', 'sucho', 'thero', 'toro', 'trex', 'tricera', 'trodon',
-		'tyranno', 'utah', 'veloci', 'vulcano', 'xeno', 'zephyro',
-	],
-	// Coffee & tea drinks
-	cafe: [
-		'affogato', 'americano', 'assam', 'barista', 'bourbon', 'breve', 'cappuccino', 'caramel',
-		'chai', 'chemex', 'cold-brew', 'cortado', 'darjeeling', 'decaf', 'doppio', 'earl-grey',
-		'espresso', 'flat-white', 'frappe', 'galao', 'genmaicha', 'gyokuro', 'hojicha', 'horchata',
-		'irish', 'jasmine', 'kopi', 'latte', 'lungo', 'macchiato', 'matcha', 'mazagran',
-		'mocha', 'nitro', 'oolong', 'piccolo', 'pourover', 'puerh', 'ristretto', 'roast',
-		'robusta', 'rooibos', 'sencha', 'siphon', 'single-origin', 'steamer', 'toddy', 'turkish',
-		'turmeric', 'vanilla-latte', 'vienna', 'yerba', 'yuanyang', 'cascara',
-	],
-};
-
-const SCHEME_NAMES = Object.keys(WORKTREE_NAMING_SCHEMES);
-const REPO_SCHEME_STORAGE_KEY = 'worktreeNamingSchemes';
-
-function getSchemeForRepo(repoPath: string): string {
-	let assignments: Record<string, string> = {};
-	try {
-		const stored = localStorage.getItem(REPO_SCHEME_STORAGE_KEY);
-		if (stored) {
-			assignments = JSON.parse(stored);
-		}
-	} catch {
-		// Corrupted storage, start fresh
-	}
-
-	// Already assigned?
-	if (assignments[repoPath] && WORKTREE_NAMING_SCHEMES[assignments[repoPath]]) {
-		return assignments[repoPath];
-	}
-
-	// Pick a scheme not yet used by another repo
-	const usedSchemes = new Set(Object.values(assignments));
-	const available = SCHEME_NAMES.filter(s => !usedSchemes.has(s));
-	const scheme = available.length > 0
-		? available[Math.floor(Math.random() * available.length)]
-		: SCHEME_NAMES[Math.floor(Math.random() * SCHEME_NAMES.length)]; // all used, allow reuse
-
-	assignments[repoPath] = scheme;
-	try {
-		localStorage.setItem(REPO_SCHEME_STORAGE_KEY, JSON.stringify(assignments));
-	} catch {
-		// Storage full or unavailable
-	}
-
-	return scheme;
-}
-
-function generateWorktreeName(existingBranches: Set<string>, repoPath: string): string {
-	const scheme = getSchemeForRepo(repoPath);
-	const words = WORKTREE_NAMING_SCHEMES[scheme];
-
-	const maxAttempts = words.length;
-	for (let i = 0; i < maxAttempts; i++) {
-		const word = words[Math.floor(Math.random() * words.length)];
-		if (!existingBranches.has(word)) {
-			return word;
-		}
-	}
-	// Fallback: all names used, generate with random suffix
-	const word = words[Math.floor(Math.random() * words.length)];
-	return `${word}-${Math.floor(Math.random() * 1000)}`;
-}
 
 const MAX_IFRAMES = 5;
 
@@ -403,7 +227,7 @@ function createWebBackend(config: IShellConfiguration, iframeContainer: HTMLElem
 export class ShellApplication {
 
 	private readonly backend: IShellBackend;
-	private readonly repoListEl: HTMLElement;
+	private repoListEl: HTMLElement;
 	private readonly iframeContainer: HTMLElement;
 	private readonly sidebarEl: HTMLElement;
 	private readonly iframes = new Map<string, HTMLIFrameElement>();
@@ -411,6 +235,7 @@ export class ShellApplication {
 	private activeWorktreePath: string | null = null;
 	private sidebarCollapsed = false;
 	private trackedRepos: string[] = [];
+	private hiddenRepos: string[] = [];
 	private repoWorktrees = new Map<string, IWorktreeInfo[]>();
 	private _activePopupDismiss: (() => void) | null = null;
 	/** Active notifications keyed by `worktreePath:source` */
@@ -471,14 +296,19 @@ export class ShellApplication {
 		try {
 			const settings = await this.backend.loadSettings();
 			this.trackedRepos = settings.trackedRepositories ?? [];
+			this.hiddenRepos = settings.hiddenRepositories ?? [];
 			this.lastBrowsePath = settings.lastBrowsePath ?? '';
 			this.sidebarCollapsed = settings.sidebarCollapsed ?? false;
 			this._applySidebarCollapsed();
-			if (this.trackedRepos.length > 0) {
+			if (this.trackedRepos.length > 0 || this.hiddenRepos.length > 0) {
 				await this.refreshWorktrees();
 				// Auto-activate if no worktree is active from URL param
 				if (!this.activeWorktreePath) {
-					this._restoreOrShowEmpty(settings.lastActiveWorktree);
+					if (this.trackedRepos.length > 0) {
+						this._restoreOrShowEmpty(settings.lastActiveWorktree);
+					} else {
+						this._showEmptyWorkbench();
+					}
 				}
 			} else {
 				// No repos — show empty workbench for menu support
@@ -897,7 +727,7 @@ export class ShellApplication {
 		});
 	}
 
-	private _showQuickInput(options: { label: string; placeholder: string }): Promise<string | null> {
+	private _showQuickInput(options: { label: string; placeholder: string; initialValue?: string }): Promise<string | null> {
 		return new Promise<string | null>(resolve => {
 			const overlay = document.createElement('div');
 			overlay.className = 'quick-input-overlay';
@@ -914,6 +744,9 @@ export class ShellApplication {
 			input.type = 'text';
 			input.placeholder = options.placeholder;
 			input.spellcheck = false;
+			if (options.initialValue) {
+				input.value = options.initialValue;
+			}
 
 			widget.appendChild(label);
 			widget.appendChild(input);
@@ -940,6 +773,7 @@ export class ShellApplication {
 
 			document.body.appendChild(overlay);
 			input.focus();
+			input.select();
 		});
 	}
 
@@ -1022,6 +856,7 @@ export class ShellApplication {
 		}
 
 		this.trackedRepos = this.trackedRepos.filter(r => r !== repoUri);
+		this.hiddenRepos = this.hiddenRepos.filter(r => r !== repoUri);
 		this._saveSettings();
 		this.repoWorktrees.delete(repoUri);
 		this._renderRepoList();
@@ -1030,28 +865,11 @@ export class ShellApplication {
 	private _saveSettings(): void {
 		this.backend.saveSettings({
 			trackedRepositories: this.trackedRepos,
+			hiddenRepositories: this.hiddenRepos,
 			lastBrowsePath: this.lastBrowsePath,
 			lastActiveWorktree: this.activeWorktreePath ?? undefined,
 			sidebarCollapsed: this.sidebarCollapsed
 		});
-	}
-
-	async refreshWorktrees(): Promise<void> {
-		if (this.trackedRepos.length === 0) {
-			this._renderRepoList();
-			return;
-		}
-
-		try {
-			const results = await this.backend.getWorktrees(this.trackedRepos);
-			for (const result of results) {
-				this.repoWorktrees.set(result.repoUri, result.worktrees);
-			}
-		} catch (err) {
-			console.error('Failed to fetch worktrees:', err);
-		}
-
-		this._renderRepoList();
 	}
 
 	private _applySidebarCollapsed(): void {
@@ -1069,36 +887,191 @@ export class ShellApplication {
 		this._saveSettings();
 	}
 
+	async refreshWorktrees(): Promise<void> {
+		const allRepos = [...this.trackedRepos, ...this.hiddenRepos];
+		if (allRepos.length === 0) {
+			this._renderRepoList();
+			return;
+		}
+
+		try {
+			const results = await this.backend.getWorktrees(allRepos);
+			for (const result of results) {
+				this.repoWorktrees.set(result.repoUri, result.worktrees);
+			}
+		} catch (err) {
+			console.error('Failed to fetch worktrees:', err);
+		}
+
+		this._renderRepoList();
+	}
+
 	private _renderRepoList(): void {
-		this.repoListEl.innerHTML = '';
+		// Replace repoListEl with a clone to clear all prior event listeners
+		const freshList = this.repoListEl.cloneNode(false) as HTMLElement;
+		this.repoListEl.parentNode!.replaceChild(freshList, this.repoListEl);
+		this.repoListEl = freshList;
 
 		for (const repoUri of this.trackedRepos) {
-			const worktrees = this.repoWorktrees.get(repoUri) ?? [];
-			const section = document.createElement('div');
-			section.className = 'repo-section';
+			this.repoListEl.appendChild(this._createRepoSection(repoUri, false));
+		}
 
-			const header = document.createElement('div');
-			header.className = 'repo-header';
-
-			const expandIcon = document.createElement('span');
-			expandIcon.className = 'expand-icon';
-			expandIcon.textContent = '\u25BC';
-
-			const repoName = document.createElement('span');
-			try {
-				const repoUrl = new URL(repoUri);
-				repoName.textContent = repoUrl.pathname.split('/').filter(Boolean).pop() ?? repoUri;
-			} catch {
-				repoName.textContent = repoUri;
+		// Drop zone: visible area (unhide repos dragged here from hidden)
+		this.repoListEl.addEventListener('dragover', (e: DragEvent) => {
+			const target = e.target as HTMLElement;
+			if (target.closest('.hidden-section')) {
+				return;
 			}
+			e.preventDefault();
+			e.dataTransfer!.dropEffect = 'move';
+			this.repoListEl.classList.add('drag-over-visible');
+		});
 
+		this.repoListEl.addEventListener('dragleave', (e: DragEvent) => {
+			if (!this.repoListEl.contains(e.relatedTarget as Node) ||
+				(e.relatedTarget as HTMLElement)?.closest?.('.hidden-section')) {
+				this.repoListEl.classList.remove('drag-over-visible');
+			}
+		});
+
+		this.repoListEl.addEventListener('drop', (e: DragEvent) => {
+			const target = e.target as HTMLElement;
+			if (target.closest('.hidden-section')) {
+				return;
+			}
+			e.preventDefault();
+			this.repoListEl.classList.remove('drag-over-visible');
+
+			const repoUri = e.dataTransfer!.getData('text/plain');
+			const wasHidden = e.dataTransfer!.getData('application/x-repo-hidden') === 'true';
+
+			if (wasHidden && repoUri) {
+				this._unhideRepository(repoUri);
+			}
+		});
+
+		// Always render hidden section as a drop target
+		const hiddenSection = document.createElement('div');
+		hiddenSection.className = 'hidden-section';
+
+		const hiddenHeader = document.createElement('div');
+		hiddenHeader.className = 'hidden-section-header';
+
+		const expandIcon = document.createElement('span');
+		expandIcon.className = 'expand-icon collapsed';
+		expandIcon.textContent = '\u25BC';
+
+		const label = document.createElement('span');
+		label.className = 'hidden-section-label';
+		label.textContent = 'Hidden';
+
+		const count = document.createElement('span');
+		count.className = 'hidden-section-count';
+		count.textContent = String(this.hiddenRepos.length);
+
+		hiddenHeader.appendChild(expandIcon);
+		hiddenHeader.appendChild(label);
+		hiddenHeader.appendChild(count);
+
+		const hiddenBody = document.createElement('div');
+		hiddenBody.className = this.hiddenRepos.length > 0 ? 'hidden-section-body collapsed' : 'hidden-section-body';
+
+		if (this.hiddenRepos.length === 0) {
+			expandIcon.classList.remove('collapsed');
+			const emptyHint = document.createElement('div');
+			emptyHint.className = 'hidden-section-empty';
+			emptyHint.textContent = 'Drag repos here to hide';
+			hiddenBody.appendChild(emptyHint);
+		} else {
+			for (const repoUri of this.hiddenRepos) {
+				hiddenBody.appendChild(this._createRepoSection(repoUri, true));
+			}
+		}
+
+		hiddenHeader.addEventListener('click', () => {
+			const collapsed = hiddenBody.classList.toggle('collapsed');
+			expandIcon.classList.toggle('collapsed', collapsed);
+		});
+
+		// Drop zone: hidden section (hide repos dragged here from visible)
+		hiddenSection.addEventListener('dragover', (e: DragEvent) => {
+			e.preventDefault();
+			e.dataTransfer!.dropEffect = 'move';
+			hiddenSection.classList.add('drag-over-hidden');
+			hiddenBody.classList.remove('collapsed');
+			expandIcon.classList.remove('collapsed');
+		});
+
+		hiddenSection.addEventListener('dragleave', (e: DragEvent) => {
+			if (!hiddenSection.contains(e.relatedTarget as Node)) {
+				hiddenSection.classList.remove('drag-over-hidden');
+			}
+		});
+
+		hiddenSection.addEventListener('drop', (e: DragEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			hiddenSection.classList.remove('drag-over-hidden');
+
+			const repoUri = e.dataTransfer!.getData('text/plain');
+			const wasHidden = e.dataTransfer!.getData('application/x-repo-hidden') === 'true';
+
+			if (!wasHidden && repoUri) {
+				this._hideRepository(repoUri);
+			}
+		});
+
+		hiddenSection.appendChild(hiddenHeader);
+		hiddenSection.appendChild(hiddenBody);
+		this.repoListEl.appendChild(hiddenSection);
+	}
+
+	private _createRepoSection(repoUri: string, isHidden: boolean): HTMLDivElement {
+		const worktrees = this.repoWorktrees.get(repoUri) ?? [];
+		const section = document.createElement('div');
+		section.className = 'repo-section';
+		section.setAttribute('draggable', 'true');
+		section.dataset.repoUri = repoUri;
+		section.dataset.isHidden = String(isHidden);
+
+		section.addEventListener('dragstart', (e: DragEvent) => {
+			e.dataTransfer!.setData('text/plain', repoUri);
+			e.dataTransfer!.setData('application/x-repo-hidden', String(isHidden));
+			e.dataTransfer!.effectAllowed = 'move';
+			section.classList.add('dragging');
+		});
+
+		section.addEventListener('dragend', () => {
+			section.classList.remove('dragging');
+			this._clearDropIndicators();
+		});
+
+		const header = document.createElement('div');
+		header.className = 'repo-header';
+
+		const expandIcon = document.createElement('span');
+		expandIcon.className = 'expand-icon';
+		expandIcon.textContent = '\u25BC';
+
+		const repoName = document.createElement('span');
+		try {
+			const repoUrl = new URL(repoUri);
+			repoName.textContent = repoUrl.pathname.split('/').filter(Boolean).pop() ?? repoUri;
+		} catch {
+			repoName.textContent = repoUri;
+		}
+
+		header.appendChild(expandIcon);
+		header.appendChild(repoName);
+
+		if (!isHidden) {
 			const addWtBtn = document.createElement('button');
 			addWtBtn.className = 'add-wt-btn';
 			addWtBtn.textContent = '+';
 			addWtBtn.title = 'Add worktree';
 			addWtBtn.addEventListener('click', e => {
 				e.stopPropagation();
-				this._addWorktree(repoUri);
+				this._addWorktree(repoUri, header);
 			});
 
 			const removeBtn = document.createElement('button');
@@ -1110,102 +1083,219 @@ export class ShellApplication {
 				this._removeRepository(repoUri);
 			});
 
-			header.appendChild(expandIcon);
-			header.appendChild(repoName);
 			header.appendChild(addWtBtn);
 			header.appendChild(removeBtn);
+		} else {
+			expandIcon.classList.add('collapsed');
 
-			const wtList = document.createElement('div');
-			wtList.className = 'worktree-list';
-
-			header.addEventListener('click', () => {
-				const collapsed = wtList.classList.toggle('collapsed');
-				expandIcon.classList.toggle('collapsed', collapsed);
+			const removeBtn = document.createElement('button');
+			removeBtn.className = 'remove-btn';
+			removeBtn.textContent = '\u00D7';
+			removeBtn.title = 'Remove repository';
+			removeBtn.addEventListener('click', e => {
+				e.stopPropagation();
+				this._removeRepository(repoUri);
 			});
 
-			const mainWorktree = worktrees.find(w => !w.isBare);
-
-			for (const wt of worktrees) {
-				const item = document.createElement('div');
-				item.className = 'worktree-item';
-				if (wt.path === this.activeWorktreePath) {
-					item.classList.add('active');
-				}
-
-				const branchSpan = document.createElement('span');
-				branchSpan.className = 'wt-branch';
-				const branchName = wt.branch ? wt.branch.replace('refs/heads/', '') : wt.path.split('/').pop() ?? wt.path;
-				branchSpan.textContent = branchName;
-				branchSpan.dataset.path = wt.path;
-				const dirName = wt.path.split('/').pop() ?? wt.path;
-				item.title = branchName + (branchName !== dirName ? '\n' + dirName : '') + '\n' + wt.path;
-				item.appendChild(branchSpan);
-
-				// Double-click to rename non-main worktree branches
-				if (!wt.isBare && wt !== mainWorktree) {
-					branchSpan.addEventListener('dblclick', e => {
-						e.stopPropagation();
-						this._startInlineRename(branchSpan, branchName, repoUri, wt);
-					});
-				}
-
-				// Show notification badge if this worktree has active notifications
-				const notifications = this._getNotificationsForWorktree(wt.path);
-				if (notifications.length > 0) {
-					const badge = this._createNotificationBadge(wt.path, notifications);
-					item.appendChild(badge);
-				}
-
-				if (wt.isBare) {
-					const bareTag = document.createElement('span');
-					bareTag.className = 'wt-bare-tag';
-					bareTag.textContent = 'bare';
-					item.appendChild(bareTag);
-				}
-
-				if (!wt.isBare && wt !== mainWorktree) {
-					const archiveBtn = document.createElement('button');
-					archiveBtn.className = 'archive-btn';
-					archiveBtn.textContent = '\u00D7';
-					archiveBtn.title = 'Remove worktree';
-					archiveBtn.addEventListener('click', e => {
-						e.stopPropagation();
-						this._archiveWorktree(repoUri, wt);
-					});
-					item.appendChild(archiveBtn);
-				}
-
-				item.addEventListener('click', () => {
-					this.switchToWorktree(wt.path);
-				});
-
-				wtList.appendChild(item);
-			}
-
-			section.appendChild(header);
-			section.appendChild(wtList);
-			this.repoListEl.appendChild(section);
+			header.appendChild(removeBtn);
 		}
 
+		const wtList = document.createElement('div');
+		wtList.className = 'worktree-list';
+
+		if (isHidden) {
+			wtList.classList.add('collapsed');
+		}
+
+		header.addEventListener('click', () => {
+			const collapsed = wtList.classList.toggle('collapsed');
+			expandIcon.classList.toggle('collapsed', collapsed);
+		});
+
+		const mainWorktree = worktrees.find(w => !w.isBare);
+
+		for (const wt of worktrees) {
+			const item = document.createElement('div');
+			item.className = 'worktree-item';
+			if (wt.path === this.activeWorktreePath) {
+				item.classList.add('active');
+			}
+
+			const branchSpan = document.createElement('span');
+			branchSpan.className = 'wt-branch';
+			const branchName = wt.branch ? wt.branch.replace('refs/heads/', '') : wt.path.split('/').pop() ?? wt.path;
+			branchSpan.textContent = branchName;
+			branchSpan.title = wt.path;
+			item.appendChild(branchSpan);
+
+			// Double-click to rename non-main worktree branches (active repos only)
+			if (!isHidden && !wt.isBare && wt !== mainWorktree) {
+				branchSpan.addEventListener('dblclick', e => {
+					e.stopPropagation();
+					this._startInlineRename(branchSpan, branchName, repoUri, wt);
+				});
+			}
+
+			// Show notification badge if this worktree has active notifications
+			const notifications = this._getNotificationsForWorktree(wt.path);
+			if (notifications.length > 0) {
+				const badge = this._createNotificationBadge(wt.path, notifications);
+				item.appendChild(badge);
+			}
+
+			if (wt.isBare) {
+				const bareTag = document.createElement('span');
+				bareTag.className = 'wt-bare-tag';
+				bareTag.textContent = 'bare';
+				item.appendChild(bareTag);
+			}
+
+			if (!isHidden && !wt.isBare && wt !== mainWorktree) {
+				const archiveBtn = document.createElement('button');
+				archiveBtn.className = 'archive-btn';
+				archiveBtn.textContent = '\u00D7';
+				archiveBtn.title = 'Remove worktree';
+				archiveBtn.addEventListener('click', e => {
+					e.stopPropagation();
+					this._archiveWorktree(repoUri, wt);
+				});
+				item.appendChild(archiveBtn);
+			}
+
+			item.addEventListener('click', () => {
+				this.switchToWorktree(wt.path);
+			});
+
+			wtList.appendChild(item);
+		}
+
+		section.appendChild(header);
+		section.appendChild(wtList);
+		return section;
 	}
 
-	private async _addWorktree(repoUri: string): Promise<void> {
+	private _clearDropIndicators(): void {
+		this.repoListEl.classList.remove('drag-over-visible');
+		const hiddenSection = this.repoListEl.querySelector('.hidden-section');
+		hiddenSection?.classList.remove('drag-over-hidden');
+		this.repoListEl.querySelectorAll('.repo-section.dragging').forEach(el => {
+			el.classList.remove('dragging');
+		});
+	}
+
+	private _hideRepository(repoUri: string): void {
+		// If switching away from an active worktree in this repo
+		const worktrees = this.repoWorktrees.get(repoUri) ?? [];
+		if (worktrees.some(wt => wt.path === this.activeWorktreePath)) {
+			this.activeWorktreePath = null;
+			const newUrl = new URL(window.location.href);
+			newUrl.searchParams.delete('folder');
+			history.replaceState(null, '', newUrl.toString());
+			this._showEmptyWorkbench();
+		}
+
+		this.trackedRepos = this.trackedRepos.filter(r => r !== repoUri);
+		if (!this.hiddenRepos.includes(repoUri)) {
+			this.hiddenRepos.push(repoUri);
+		}
+		this._saveSettings();
+		this._renderRepoList();
+	}
+
+	private _unhideRepository(repoUri: string): void {
+		this.hiddenRepos = this.hiddenRepos.filter(r => r !== repoUri);
+		if (!this.trackedRepos.includes(repoUri)) {
+			this.trackedRepos.push(repoUri);
+		}
+		this._saveSettings();
+		this._renderRepoList();
+	}
+
+	private _addWorktree(repoUri: string, anchorEl: HTMLElement): void {
 		this._dismissActivePopup();
 
 		const repoPath = repoUri.replace(/^file:\/\//, '');
 
-		// Collect existing branch names to avoid collisions
-		const existingBranches = new Set<string>();
-		try {
-			const result = await this.backend.listBranches(repoPath);
-			for (const b of result.branches) {
-				existingBranches.add(b);
-			}
-		} catch {
-			// Best-effort; proceed even if branch listing fails
+		const menu = document.createElement('div');
+		menu.className = 'add-repo-menu';
+
+		const menuItems = [
+			{ label: 'New Branch...', action: () => { dismiss(); this._addWorktreeNewBranch(repoPath); } },
+			{ label: 'Existing Branch...', action: () => { dismiss(); this._addWorktreeExistingBranch(repoPath); } }
+		];
+
+		let focusedIndex = -1;
+
+		const updateFocus = () => {
+			menu.querySelectorAll('.add-repo-menu-item').forEach((el, i) => {
+				el.classList.toggle('focused', i === focusedIndex);
+			});
+		};
+
+		for (const menuItem of menuItems) {
+			const el = document.createElement('div');
+			el.className = 'add-repo-menu-item';
+			el.textContent = menuItem.label;
+			el.addEventListener('click', menuItem.action);
+			menu.appendChild(el);
 		}
 
-		const branchName = generateWorktreeName(existingBranches, repoPath);
+		const dismiss = () => {
+			menu.remove();
+			document.removeEventListener('mousedown', outsideClickHandler);
+			document.removeEventListener('keydown', keyHandler);
+			this._activePopupDismiss = null;
+		};
+
+		const outsideClickHandler = (e: MouseEvent) => {
+			if (!menu.contains(e.target as Node)) {
+				dismiss();
+			}
+		};
+
+		const keyHandler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				dismiss();
+			} else if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				focusedIndex = Math.min(focusedIndex + 1, menuItems.length - 1);
+				updateFocus();
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				focusedIndex = Math.max(focusedIndex - 1, 0);
+				updateFocus();
+			} else if (e.key === 'Enter' && focusedIndex >= 0) {
+				e.preventDefault();
+				menuItems[focusedIndex].action();
+			}
+		};
+
+		setTimeout(() => {
+			document.addEventListener('mousedown', outsideClickHandler);
+		}, 0);
+		document.addEventListener('keydown', keyHandler);
+
+		anchorEl.style.position = 'relative';
+		menu.style.top = '100%';
+		menu.style.left = '0';
+		menu.style.right = '0';
+		menu.style.bottom = 'auto';
+		menu.style.marginTop = '2px';
+		menu.style.marginBottom = '0';
+		anchorEl.appendChild(menu);
+
+		this._activePopupDismiss = dismiss;
+	}
+
+	private async _addWorktreeNewBranch(repoPath: string): Promise<void> {
+		const branchName = await this._withOverlay(() => this._showQuickInput({
+			label: 'Branch name (also used as directory name)',
+			placeholder: 'feature/my-branch',
+		}));
+		if (!branchName) {
+			return;
+		}
 
 		try {
 			const result = await this.backend.addWorktree(repoPath, branchName, true);
@@ -1218,6 +1308,132 @@ export class ShellApplication {
 		} catch (err) {
 			alert(`Failed to add worktree: ${err}`);
 		}
+	}
+
+	private async _addWorktreeExistingBranch(repoPath: string): Promise<void> {
+		let branches: string[];
+		try {
+			const result = await this.backend.listBranches(repoPath);
+			branches = result.branches ?? [];
+		} catch (err) {
+			alert(`Failed to fetch branches: ${err}`);
+			return;
+		}
+
+		if (branches.length === 0) {
+			alert('No branches found.');
+			return;
+		}
+
+		const selected = await this._withOverlay(() => this._showBranchPicker(branches));
+		if (!selected) {
+			return;
+		}
+
+		try {
+			const result = await this.backend.addWorktree(repoPath, selected, false);
+			if (result.success) {
+				await this.refreshWorktrees();
+				this.switchToWorktree(result.path!);
+			} else {
+				alert(`Failed to add worktree: ${result.error}`);
+			}
+		} catch (err) {
+			alert(`Failed to add worktree: ${err}`);
+		}
+	}
+
+	private _showBranchPicker(branches: string[]): Promise<string | null> {
+		return new Promise<string | null>(resolve => {
+			const overlay = document.createElement('div');
+			overlay.className = 'quick-input-overlay';
+
+			const widget = document.createElement('div');
+			widget.className = 'quick-input-widget branch-picker';
+
+			const label = document.createElement('div');
+			label.className = 'quick-input-label';
+			label.textContent = 'Select a branch';
+
+			const filterInput = document.createElement('input');
+			filterInput.className = 'quick-input-field';
+			filterInput.type = 'text';
+			filterInput.placeholder = 'Filter branches...';
+			filterInput.spellcheck = false;
+
+			const list = document.createElement('div');
+			list.className = 'branch-picker-list';
+
+			widget.appendChild(label);
+			widget.appendChild(filterInput);
+			widget.appendChild(list);
+			overlay.appendChild(widget);
+
+			let focusedIndex = -1;
+			let filtered = branches.slice();
+
+			const dismiss = (result: string | null) => {
+				overlay.remove();
+				resolve(result);
+			};
+
+			const renderList = () => {
+				list.innerHTML = '';
+				focusedIndex = filtered.length > 0 ? 0 : -1;
+				for (let i = 0; i < filtered.length; i++) {
+					const el = document.createElement('div');
+					el.className = 'branch-picker-item';
+					if (i === focusedIndex) {
+						el.classList.add('focused');
+					}
+					el.textContent = filtered[i];
+					el.addEventListener('click', () => dismiss(filtered[i]));
+					list.appendChild(el);
+				}
+			};
+
+			const updateFocus = () => {
+				list.querySelectorAll('.branch-picker-item').forEach((el, i) => {
+					el.classList.toggle('focused', i === focusedIndex);
+					if (i === focusedIndex) {
+						el.scrollIntoView({ block: 'nearest' });
+					}
+				});
+			};
+
+			filterInput.addEventListener('input', () => {
+				const q = filterInput.value.toLowerCase();
+				filtered = branches.filter(b => b.toLowerCase().includes(q));
+				renderList();
+			});
+
+			filterInput.addEventListener('keydown', e => {
+				if (e.key === 'Escape') {
+					dismiss(null);
+				} else if (e.key === 'ArrowDown') {
+					e.preventDefault();
+					focusedIndex = Math.min(focusedIndex + 1, filtered.length - 1);
+					updateFocus();
+				} else if (e.key === 'ArrowUp') {
+					e.preventDefault();
+					focusedIndex = Math.max(focusedIndex - 1, 0);
+					updateFocus();
+				} else if (e.key === 'Enter' && focusedIndex >= 0) {
+					e.preventDefault();
+					dismiss(filtered[focusedIndex]);
+				}
+			});
+
+			overlay.addEventListener('mousedown', e => {
+				if (e.target === overlay) {
+					dismiss(null);
+				}
+			});
+
+			document.body.appendChild(overlay);
+			filterInput.focus();
+			renderList();
+		});
 	}
 
 	private _startInlineRename(branchSpan: HTMLSpanElement, currentName: string, repoUri: string, wt: IWorktreeInfo): void {
@@ -1328,8 +1544,8 @@ export class ShellApplication {
 	private _updateBadges(worktreePath: string): void {
 		const items = this.repoListEl.querySelectorAll('.worktree-item');
 		for (const item of items) {
-			const branchEl = item.querySelector('.wt-branch') as HTMLElement | null;
-			if (!branchEl || branchEl.dataset.path !== worktreePath) {
+			const branchEl = item.querySelector('.wt-branch');
+			if (!branchEl || branchEl.getAttribute('title') !== worktreePath) {
 				continue;
 			}
 			// Remove existing badge
@@ -1403,12 +1619,11 @@ export class ShellApplication {
 			el.classList.remove('active');
 		});
 		this.repoListEl.querySelectorAll('.worktree-item').forEach(el => {
-			const branchEl = el.querySelector('.wt-branch') as HTMLElement | null;
-			if (branchEl && branchEl.dataset.path === worktreePath) {
+			const branchEl = el.querySelector('.wt-branch');
+			if (branchEl && branchEl.getAttribute('title') === worktreePath) {
 				el.classList.add('active');
 			}
 		});
-
 	}
 }
 
